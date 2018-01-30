@@ -1,0 +1,1 @@
+zip.w2v.840B.300d.txt.bz2 filter=lfs diff=lfs merge=lfs -text
