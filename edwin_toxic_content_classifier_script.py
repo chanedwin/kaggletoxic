@@ -1,18 +1,21 @@
 import csv
+import os
+import pickle
+import time
 
 import numpy as np
 from gensim.models.keyedvectors import KeyedVectors
 from nltk.tokenize import TweetTokenizer
 
 
-def main(data_file, w2v_model, testing):
+def main(data_file, w2v_model, testing, expt_name="test"):
     if testing:
         print("running tests")
         number_of_epochs = 1
         model = build_keras_test_model()
     else:
         print("running eval")
-        number_of_epochs = 10
+        number_of_epochs = 100
         model = build_keras_model()
 
     # load data
@@ -29,15 +32,19 @@ def main(data_file, w2v_model, testing):
 
     # build neural network model
     print("training network")
-    model.fit(x_train, y_train,
-              batch_size=128, epochs=number_of_epochs,
-              validation_data=(x_test, y_test))
+    history = model.fit(x_train, y_train,
+                        batch_size=128, epochs=number_of_epochs,
+                        validation_data=(x_test, y_test))
 
     # try some values
-    if not testing:
-        x_predict = model.predict(x_train[:100])
-        for index, val in enumerate(x_predict):
-            print("predicted is {}, truth is {},".format(x_predict[index][0], y_train[index]))
+    x_predict = model.predict(x_train[::1000])
+    for index, val in enumerate(x_predict):
+        print("predicted is {}, truth is {},".format(x_predict[index][0], y_train[index]))
+    folder = time.strftime("%d_%m_%y_%H:%M") + "_" + expt_name
+    os.makedirs('keras_models/{}'.format(folder), exist_ok=True)
+    model.save('keras_models/{}/keras_model.h5'.format(folder))
+    with open('keras_models/{}/trainHistoryDict'.format(folder), 'wb') as file_pi:
+        pickle.dump(history.history, file_pi)
 
 
 def load_w2v_model_from_path(model_path, binary_input=False):
@@ -79,9 +86,9 @@ def build_keras_model():
     num_classes = 2
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
-    model.add(LSTM(32, return_sequences=True,
+    model.add(LSTM(64, return_sequences=True,
                    input_shape=(timesteps, data_dim)))  # returns a sequence of vectors of dimension 32
-    model.add(LSTM(32, return_sequences=True))  # returns a sequence of vectors of dimension 32
+    model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
     model.add(LSTM(32))  # return a single vector of dimension 32
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
@@ -164,13 +171,15 @@ def safe_remove_indexes_from_list(list_of_indexes, full_data_set):
 
 
 if __name__ == "__main__":
+    EXPT_NAME = "TEST"
     SAMPLE_DATA_FILE = './data/sample_set.csv'
     SAMPLE_W2V_MODEL = './models/GoogleNews-vectors-negative300-SLIM.bin'
     model = load_w2v_model_from_path(SAMPLE_W2V_MODEL, binary_input=True)
-    main(SAMPLE_DATA_FILE, model, testing=True)
+    main(SAMPLE_DATA_FILE, model, testing=True, expt_name=EXPT_NAME)
 
     print("done with tests, loading true model")
+    EXPT_NAME = "REAL"
     DATA_FILE = './data/train.csv'
     W2V_MODEL = './models/w2v.840B.300d.txt'
     model = load_w2v_model_from_path(W2V_MODEL)
-    main(DATA_FILE, model, testing=False)
+    main(DATA_FILE, model, testing=False, expt_name=EXPT_NAME)
