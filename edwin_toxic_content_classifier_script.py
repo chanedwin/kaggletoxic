@@ -12,11 +12,9 @@ def main(data_file, w2v_model, testing, expt_name="test"):
     if testing:
         print("running tests")
         number_of_epochs = 1
-        model = build_keras_test_model()
     else:
         print("running eval")
-        number_of_epochs = 100
-        model = build_keras_model()
+        number_of_epochs = 50
 
     # load data
     print("loading data")
@@ -31,6 +29,7 @@ def main(data_file, w2v_model, testing, expt_name="test"):
     x_test, x_train, y_test, y_train = split_train_test(full_data, vectorized_sentences_np)
 
     # build neural network model
+    model = build_keras_model()
     print("training network")
     history = model.fit(x_train, y_train,
                         batch_size=128, epochs=number_of_epochs,
@@ -40,6 +39,10 @@ def main(data_file, w2v_model, testing, expt_name="test"):
     x_predict = model.predict(x_train[::1000])
     for index, val in enumerate(x_predict):
         print("predicted is {}, truth is {},".format(x_predict[index][0], y_train[index]))
+    save_model_details_and_training_history(expt_name, history, model)
+
+
+def save_model_details_and_training_history(expt_name, history, model):
     folder = time.strftime("%d_%m_%y_%H:%M") + "_" + expt_name
     os.makedirs('keras_models/{}'.format(folder), exist_ok=True)
     model.save('keras_models/{}/keras_model.h5'.format(folder))
@@ -59,35 +62,19 @@ def load_w2v_model_from_path(model_path, binary_input=False):
     w2v_model = KeyedVectors.load_word2vec_format(model_path, binary=binary_input)
     return w2v_model
 
-
-def build_keras_test_model():
-    from keras.models import Sequential
-    from keras.layers import LSTM, Dense
-    data_dim = 300
-    timesteps = 50
-    num_classes = 2
-    # expected input data shape: (batch_size, timesteps, data_dim)
-    model = Sequential()
-    model.add(LSTM(10, return_sequences=True,
-                   input_shape=(timesteps, data_dim)))  # returns a sequence of vectors of dimension 10
-    model.add(LSTM(1))  # return a single vector of dimension 1
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy',
-                  optimizer='rmsprop',
-                  metrics=['accuracy'])
-    return model
-
-
 def build_keras_model():
     from keras.models import Sequential
     from keras.layers import LSTM, Dense
     data_dim = 300
     timesteps = 50
-    num_classes = 2
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
     model.add(LSTM(64, return_sequences=True,
                    input_shape=(timesteps, data_dim)))  # returns a sequence of vectors of dimension 32
+    model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
+    model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
+    model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
+    model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
     model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
     model.add(LSTM(32))  # return a single vector of dimension 32
     model.add(Dense(1, activation='sigmoid'))
@@ -98,10 +85,11 @@ def build_keras_model():
 
 
 def split_train_test(full_data, vectorized_sentences_np):
-    x_train = vectorized_sentences_np[-10000:]
-    x_test = vectorized_sentences_np[:10000]
-    y_train = full_data['toxic'][-10000:]
-    y_test = full_data['toxic'][:10000]
+    one_tenth_size = len(vectorized_sentences_np)//10
+    x_train = vectorized_sentences_np[one_tenth_size:]
+    x_test = vectorized_sentences_np[:one_tenth_size]
+    y_train = full_data['toxic'][one_tenth_size:]
+    y_test = full_data['toxic'][:one_tenth_size]
     return x_test, x_train, y_test, y_train
 
 
@@ -172,7 +160,7 @@ def safe_remove_indexes_from_list(list_of_indexes, full_data_set):
 
 if __name__ == "__main__":
     EXPT_NAME = "TEST"
-    SAMPLE_DATA_FILE = './data/sample_set.csv'
+    SAMPLE_DATA_FILE = './data/sample.csv'
     SAMPLE_W2V_MODEL = './models/GoogleNews-vectors-negative300-SLIM.bin'
     model = load_w2v_model_from_path(SAMPLE_W2V_MODEL, binary_input=True)
     main(SAMPLE_DATA_FILE, model, testing=True, expt_name=EXPT_NAME)
