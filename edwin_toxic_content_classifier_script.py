@@ -6,7 +6,7 @@ import time
 import numpy as np
 from gensim.models.keyedvectors import KeyedVectors
 from nltk.tokenize import TweetTokenizer
-
+import keras.callbacks
 
 def main(data_file, w2v_model, testing, expt_name="test"):
     if testing:
@@ -31,9 +31,12 @@ def main(data_file, w2v_model, testing, expt_name="test"):
     # build neural network model
     model = build_keras_model()
     print("training network")
+    early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
     history = model.fit(x_train, y_train,
                         batch_size=128, epochs=number_of_epochs,
-                        validation_data=(x_test, y_test))
+                        validation_data=(x_test, y_test),
+                        callbacks=[early_stop_callback, ]
+                        )
 
     # try some values
     x_predict = model.predict(x_train[::1000])
