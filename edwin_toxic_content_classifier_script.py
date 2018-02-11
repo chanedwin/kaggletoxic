@@ -33,7 +33,9 @@ def main(data_file, w2v_model, testing, expt_name="test"):
     tokenized_sentences = tokenize_tweets(text_data)
     removed_indexes, vectorized_sentences_np = vectorise_tweets(w2v_model, tokenized_sentences)
     safe_remove_indexes_from_list(removed_indexes,
-                                  full_data)  # because some text return nothing, must remove ground truth too
+                                  full_data,
+                                  vectorized_sentences_np)  # because some text return nothing, must remove ground truth too
+
     X_dict, y_dict = split_train_test(full_data, vectorized_sentences_np)
 
     key = 'toxic'  # testing with 1 key for now
@@ -120,14 +122,22 @@ def vectorise_tweets(model, tokenized_sentences):
     # vectorise sentences
     removed_indexes = []
     vectorized_sentences = []
+
+    # for each sentence
     for i in range(len(tokenized_sentences)):
         tokenized_sentence = tokenized_sentences[i]
         vector_rep_of_sentence = []
+
+        # check if i can use wv model to vectorize the sentence
         for word in tokenized_sentence:
             if word in model.vocab:
                 vector_rep_of_sentence.append(model.wv[word])
+
+        # if i cannot do so, remove the sentence
         if not vector_rep_of_sentence:
             removed_indexes.append(i)
+
+        # else turn it into a numpy array
         else:
             array = np.array(vector_rep_of_sentence)
             vectorized_sentences.append(array)
@@ -147,6 +157,14 @@ def tokenize_tweets(text_data):
 
 
 def load_data(data_file):
+    """
+
+    :param data_file: path to train data file
+    :type data_file: str
+    :return: list of strings [text_data] containing each row of text in traing dataset, and
+     dictionary of truth labels with key as dataset name and value as a list containing labels for each row in text_data
+    :rtype: full_truth_labels_data : dictionary of lists of ints,  text_data : list of str
+    """
     full_data_set = []
     with open(data_file) as f:
         reader = csv.reader(f)
@@ -154,27 +172,31 @@ def load_data(data_file):
         for line in reader:
             full_data_set.append(line)
     # load data into native lists
-    print(header)
     id_data = [i for i in map(lambda x: x[0], full_data_set)]
     text_data = [i for i in map(lambda x: x[1], full_data_set)]
-    toxic_data = [i for i in map(lambda x: x[2], full_data_set)]
-    severe_toxic_data = [i for i in map(lambda x: x[3], full_data_set)]
-    obscene_data = [i for i in map(lambda x: x[4], full_data_set)]
-    threat_data = [i for i in map(lambda x: x[5], full_data_set)]
-    insult_data = [i for i in map(lambda x: x[6], full_data_set)]
-    identity_hate_data = [i for i in map(lambda x: x[6], full_data_set)]
-    full_data = {'id': id_data, 'toxic': toxic_data, 'severe_toxic': severe_toxic_data, 'obscene': obscene_data,
-                 'threat': threat_data, 'insult': insult_data, 'identity_hate': identity_hate_data}
-    return full_data, text_data
+    toxic_data = [int(i) for i in map(lambda x: x[2], full_data_set)]
+    severe_toxic_data = [int(i) for i in map(lambda x: x[3], full_data_set)]
+    obscene_data = [int(i) for i in map(lambda x: x[4], full_data_set)]
+    threat_data = [int(i) for i in map(lambda x: x[5], full_data_set)]
+    insult_data = [int(i) for i in map(lambda x: x[6], full_data_set)]
+    identity_hate_data = [int(i) for i in map(lambda x: x[7], full_data_set)]
+    full_truth_labels_data = {'id': id_data, 'toxic': toxic_data, 'severe_toxic': severe_toxic_data,
+                              'obscene': obscene_data,
+                              'threat': threat_data, 'insult': insult_data, 'identity_hate': identity_hate_data}
+    return full_truth_labels_data, text_data
 
 
-def safe_remove_indexes_from_list(list_of_indexes, full_data_set):
+def safe_remove_indexes_from_list(list_of_indexes, full_data_set, vectorized_sentences_np):
     list_of_indexes.sort(reverse=True)  # always remove the largest indexes first or you will get an index error
     for key in full_data_set:  # for each sequence
         sequence = full_data_set[key]
         for index in list_of_indexes:  # iterate through index
             sequence.pop(index)
         full_data_set[key] = sequence
+
+    # ensure that removal was done properly
+    for key in full_data_set:
+        assert (len(full_data_set[key]) == vectorized_sentences_np.shape[0])
 
 
 if __name__ == "__main__":
