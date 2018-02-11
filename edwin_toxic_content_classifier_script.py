@@ -1,19 +1,30 @@
-import csv
 import os
 import pickle
 import time
 
 import keras.callbacks
 import numpy as np
+import pandas as pd
 from gensim.models.keyedvectors import KeyedVectors
 from keras.preprocessing import sequence
 from nltk.tokenize import TweetTokenizer
-from sklearn.model_selection import train_test_split
+
+COMMENT_TEXT_INDEX = 'comment_text'
+TOXIC_TEXT_INDEX = 'toxic'
+SEVERE_TOXIC_TEXT_INDEX = 'severe_toxic'
+OBSCENE_TEXT_INDEX = 'obscene'
+THREAT_TEXT_INDEX = 'threat'
+INSULT_TEXT_INDEX = 'insult'
+IDENTITY_HATE_TEXT_INDEX = 'identity_hate'
+TRUTH_LABELS = [TOXIC_TEXT_INDEX, SEVERE_TOXIC_TEXT_INDEX, OBSCENE_TEXT_INDEX, THREAT_TEXT_INDEX, INSULT_TEXT_INDEX,
+                IDENTITY_HATE_TEXT_INDEX]
 
 MAXLEN = 3000
 
-TRAIN_DATA_INDEX_IN_DATA_DICT = 0
-TEST_DATA_INDEX_IN_DATA_DICT = 1
+X_TRAIN_DATA_INDEX = 0
+X_TEST_DATA_INDEX = 1
+Y_TRAIN_DATA_INDEX = 2
+Y_TEST_DATA_INDEX = 3
 
 
 def main(data_file, w2v_model, testing, expt_name="test"):
@@ -26,26 +37,26 @@ def main(data_file, w2v_model, testing, expt_name="test"):
 
     # load data
     print("loading data")
-    full_data, text_data = load_data(data_file)
+    df = load_data(data_file)
 
     # process data
     print("processing data")
-    tokenized_sentences = tokenize_tweets(text_data)
-    removed_indexes, vectorized_sentences_np = vectorise_tweets(w2v_model, tokenized_sentences)
-    safe_remove_indexes_from_list(removed_indexes,
-                                  full_data,
-                                  vectorized_sentences_np)  # because some text return nothing, must remove ground truth too
+    tokenize_tweets(df)
+    vectorise_tweets(w2v_model, df)
+    drop_words_with_no_vectors_at_all_in_w2v(df)  # because some text return nothing, must remove ground truth too
 
-    X_dict, y_dict = split_train_test(full_data, vectorized_sentences_np)
+    np_text_array, truth_dictionary = extract_numpy_vectors(df)
 
-    key = 'toxic'  # testing with 1 key for now
-    x_train = X_dict[key][TRAIN_DATA_INDEX_IN_DATA_DICT]
+    data_dict = split_train_test(np_text_array, truth_dictionary)
+
+    key = TOXIC_TEXT_INDEX # testing with 1 key for now
+    x_train = data_dict[key][X_TRAIN_DATA_INDEX]
     padded_x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
-    y_train = y_dict[key][TRAIN_DATA_INDEX_IN_DATA_DICT]
+    y_train = data_dict[key][Y_TRAIN_DATA_INDEX]
 
-    x_test = X_dict[key][TEST_DATA_INDEX_IN_DATA_DICT]
+    x_test = data_dict[key][X_TEST_DATA_INDEX]
     padded_x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
-    y_test = y_dict[key][TEST_DATA_INDEX_IN_DATA_DICT]
+    y_test = data_dict[key][Y_TEST_DATA_INDEX]
 
     # build neural network model
     model = build_keras_model()
@@ -63,6 +74,15 @@ def main(data_file, w2v_model, testing, expt_name="test"):
     for index, val in enumerate(x_predict):
         print("predicted is {}, truth is {},".format(x_predict[index][0], y_train[index]))
     save_model_details_and_training_history(expt_name, history, model)
+
+
+def extract_numpy_vectors(df):
+    text = np.array(df[COMMENT_TEXT_INDEX].as_matrix())
+    dictionary_of_truth_labels = {}
+    for key in TRUTH_LABELS:
+        value = np.array(df[key].as_matrix())
+        dictionary_of_truth_labels[key] = value
+    return text, dictionary_of_truth_labels
 
 
 def save_model_details_and_training_history(expt_name, history, model):
@@ -108,52 +128,42 @@ def build_keras_model():
     return model
 
 
-def split_train_test(full_data, vectorized_sentences_np):
-    dictionary_of_training_vectors = {}
-    dictionary_of_truth_labels = {}
-    for key in full_data:
-        X_train, X_test, y_train, y_test = train_test_split(vectorized_sentences_np, full_data[key], test_size=0.1)
-        dictionary_of_training_vectors[key] = (X_train, X_test)
-        dictionary_of_truth_labels[key] = (y_train, y_test)
-    return dictionary_of_training_vectors, dictionary_of_truth_labels
+def split_train_test(np_text_array, truth_dictionary):
+    from sklearn.model_selection import train_test_split
+    data_dictionary = {}
+    for key in truth_dictionary:
+        X_train, X_test, y_train, y_test = train_test_split(np_text_array, truth_dictionary[key], test_size=0.1,
+                                                            random_state=42)
+        data_dictionary[key] = X_train, X_test, y_train, y_test
+    return data_dictionary
 
 
-def vectorise_tweets(model, tokenized_sentences):
+def vectorise_tweets(model, df):
     # vectorise sentences
-    removed_indexes = []
-    vectorized_sentences = []
-
-    # for each sentence
-    for i in range(len(tokenized_sentences)):
-        tokenized_sentence = tokenized_sentences[i]
-        vector_rep_of_sentence = []
-
-        # check if i can use wv model to vectorize the sentence
-        for word in tokenized_sentence:
-            if word in model.vocab:
-                vector_rep_of_sentence.append(model.wv[word])
-
-        # if i cannot do so, remove the sentence
-        if not vector_rep_of_sentence:
-            removed_indexes.append(i)
-
-        # else turn it into a numpy array
-        else:
-            array = np.array(vector_rep_of_sentence)
-            vectorized_sentences.append(array)
-    vectorized_sentences_np = np.array(vectorized_sentences)
-    return removed_indexes, vectorized_sentences_np
+    df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(
+        lambda x: _vectorize_text_if_possible_else_return_None(x, model.wv))
 
 
-def tokenize_tweets(text_data):
+def _vectorize_text_if_possible_else_return_None(tokenized_sentence, w2vmodel):
+    vector_rep_of_sentence = []
+    # check if i can use wv model to vectorize the sentence
+    for word in tokenized_sentence:
+        if word in model.vocab:
+            vector_rep_of_sentence.append(w2vmodel[word])
+
+    # if i cannot do so, remove the sentence
+    if not vector_rep_of_sentence:
+        return None
+
+    # else turn it into a numpy array
+    else:
+        return np.array(vector_rep_of_sentence)
+
+
+def tokenize_tweets(df):
     tknzr = TweetTokenizer()
-    max_length = 0
     # tokenize sentences
-    tokenized_sentences = []
-    for sentence in text_data:
-        tokenized_sentences.append(tknzr.tokenize(sentence))
-        max_length = max(max_length, len(sentence))
-    return tokenized_sentences
+    df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(lambda x: tknzr.tokenize(x))
 
 
 def load_data(data_file):
@@ -165,38 +175,12 @@ def load_data(data_file):
      dictionary of truth labels with key as dataset name and value as a list containing labels for each row in text_data
     :rtype: full_truth_labels_data : dictionary of lists of ints,  text_data : list of str
     """
-    full_data_set = []
-    with open(data_file) as f:
-        reader = csv.reader(f)
-        header = next(reader)
-        for line in reader:
-            full_data_set.append(line)
-    # load data into native lists
-    id_data = [i for i in map(lambda x: x[0], full_data_set)]
-    text_data = [i for i in map(lambda x: x[1], full_data_set)]
-    toxic_data = [int(i) for i in map(lambda x: x[2], full_data_set)]
-    severe_toxic_data = [int(i) for i in map(lambda x: x[3], full_data_set)]
-    obscene_data = [int(i) for i in map(lambda x: x[4], full_data_set)]
-    threat_data = [int(i) for i in map(lambda x: x[5], full_data_set)]
-    insult_data = [int(i) for i in map(lambda x: x[6], full_data_set)]
-    identity_hate_data = [int(i) for i in map(lambda x: x[7], full_data_set)]
-    full_truth_labels_data = {'id': id_data, 'toxic': toxic_data, 'severe_toxic': severe_toxic_data,
-                              'obscene': obscene_data,
-                              'threat': threat_data, 'insult': insult_data, 'identity_hate': identity_hate_data}
-    return full_truth_labels_data, text_data
+    df = pd.read_csv(data_file)
+    return df
 
 
-def safe_remove_indexes_from_list(list_of_indexes, full_data_set, vectorized_sentences_np):
-    list_of_indexes.sort(reverse=True)  # always remove the largest indexes first or you will get an index error
-    for key in full_data_set:  # for each sequence
-        sequence = full_data_set[key]
-        for index in list_of_indexes:  # iterate through index
-            sequence.pop(index)
-        full_data_set[key] = sequence
-
-    # ensure that removal was done properly
-    for key in full_data_set:
-        assert (len(full_data_set[key]) == vectorized_sentences_np.shape[0])
+def drop_words_with_no_vectors_at_all_in_w2v(df):
+    df.drop(df[df.comment_text.isnull()].index, inplace=True)
 
 
 if __name__ == "__main__":
