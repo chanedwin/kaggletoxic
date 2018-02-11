@@ -122,8 +122,6 @@ def vectorise_tweets(model, tokenized_sentences):
     vectorized_sentences = []
     for i in range(len(tokenized_sentences)):
         tokenized_sentence = tokenized_sentences[i]
-        # if len(tokenized_sentence) > 50:
-        #    tokenized_sentence = tokenized_sentence[:50]
         vector_rep_of_sentence = []
         for word in tokenized_sentence:
             if word in model.vocab:
@@ -132,10 +130,7 @@ def vectorise_tweets(model, tokenized_sentences):
             removed_indexes.append(i)
         else:
             array = np.array(vector_rep_of_sentence)
-            # zeroes = np.zeros((50 - len(vector_rep_of_sentence), 300))
-            # vector_rep_of_sentence = np.concatenate((array, zeroes), axis=0)
             vectorized_sentences.append(array)
-            print(array.shape)
     vectorized_sentences_np = np.array(vectorized_sentences)
     return removed_indexes, vectorized_sentences_np
 
