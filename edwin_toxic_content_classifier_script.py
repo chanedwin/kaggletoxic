@@ -3,10 +3,18 @@ import os
 import pickle
 import time
 
+import keras.callbacks
 import numpy as np
 from gensim.models.keyedvectors import KeyedVectors
+from keras.preprocessing import sequence
 from nltk.tokenize import TweetTokenizer
-import keras.callbacks
+from sklearn.model_selection import train_test_split
+
+MAXLEN = 3000
+
+TRAIN_DATA_INDEX_IN_DATA_DICT = 0
+TEST_DATA_INDEX_IN_DATA_DICT = 1
+
 
 def main(data_file, w2v_model, testing, expt_name="test"):
     if testing:
@@ -26,20 +34,30 @@ def main(data_file, w2v_model, testing, expt_name="test"):
     removed_indexes, vectorized_sentences_np = vectorise_tweets(w2v_model, tokenized_sentences)
     safe_remove_indexes_from_list(removed_indexes,
                                   full_data)  # because some text return nothing, must remove ground truth too
-    x_test, x_train, y_test, y_train = split_train_test(full_data, vectorized_sentences_np)
+    X_dict, y_dict = split_train_test(full_data, vectorized_sentences_np)
+
+    key = 'toxic'  # testing with 1 key for now
+    x_train = X_dict[key][TRAIN_DATA_INDEX_IN_DATA_DICT]
+    padded_x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
+    y_train = y_dict[key][TRAIN_DATA_INDEX_IN_DATA_DICT]
+
+    x_test = X_dict[key][TEST_DATA_INDEX_IN_DATA_DICT]
+    padded_x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
+    y_test = y_dict[key][TEST_DATA_INDEX_IN_DATA_DICT]
 
     # build neural network model
     model = build_keras_model()
     print("training network")
     early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
-    history = model.fit(x_train, y_train,
-                        batch_size=128, epochs=number_of_epochs,
-                        validation_data=(x_test, y_test),
+
+    history = model.fit(padded_x_train, y_train,
+                        batch_size=1024, epochs=number_of_epochs,
+                        validation_data=(padded_x_test, y_test),
                         callbacks=[early_stop_callback, ]
                         )
 
     # try some values
-    x_predict = model.predict(x_train[::1000])
+    x_predict = model.predict(padded_x_test[::1000])
     for index, val in enumerate(x_predict):
         print("predicted is {}, truth is {},".format(x_predict[index][0], y_train[index]))
     save_model_details_and_training_history(expt_name, history, model)
@@ -65,17 +83,18 @@ def load_w2v_model_from_path(model_path, binary_input=False):
     w2v_model = KeyedVectors.load_word2vec_format(model_path, binary=binary_input)
     return w2v_model
 
+
 def build_keras_model():
     from keras.models import Sequential
-    from keras.layers import LSTM, Dense
+    from keras.layers import Dense
     data_dim = 300
     timesteps = 50
+
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
-    model.add(LSTM(64, return_sequences=True,
-                   input_shape=(timesteps, data_dim)))  # returns a sequence of vectors of dimension 32
-    model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
-    model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
+    from keras.layers import LSTM
+
+    model.add(LSTM(64, return_sequences=True, input_shape=(3000, 300)))
     model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
     model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
     model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
@@ -88,12 +107,13 @@ def build_keras_model():
 
 
 def split_train_test(full_data, vectorized_sentences_np):
-    one_tenth_size = len(vectorized_sentences_np)//10
-    x_train = vectorized_sentences_np[one_tenth_size:]
-    x_test = vectorized_sentences_np[:one_tenth_size]
-    y_train = full_data['toxic'][one_tenth_size:]
-    y_test = full_data['toxic'][:one_tenth_size]
-    return x_test, x_train, y_test, y_train
+    dictionary_of_training_vectors = {}
+    dictionary_of_truth_labels = {}
+    for key in full_data:
+        X_train, X_test, y_train, y_test = train_test_split(vectorized_sentences_np, full_data[key], test_size=0.1)
+        dictionary_of_training_vectors[key] = (X_train, X_test)
+        dictionary_of_truth_labels[key] = (y_train, y_test)
+    return dictionary_of_training_vectors, dictionary_of_truth_labels
 
 
 def vectorise_tweets(model, tokenized_sentences):
@@ -102,8 +122,6 @@ def vectorise_tweets(model, tokenized_sentences):
     vectorized_sentences = []
     for i in range(len(tokenized_sentences)):
         tokenized_sentence = tokenized_sentences[i]
-        if len(tokenized_sentence) > 50:
-            tokenized_sentence = tokenized_sentence[:50]
         vector_rep_of_sentence = []
         for word in tokenized_sentence:
             if word in model.vocab:
@@ -112,9 +130,7 @@ def vectorise_tweets(model, tokenized_sentences):
             removed_indexes.append(i)
         else:
             array = np.array(vector_rep_of_sentence)
-            zeroes = np.zeros((50 - len(vector_rep_of_sentence), 300))
-            vector_rep_of_sentence = np.concatenate((array, zeroes), axis=0)
-            vectorized_sentences.append(vector_rep_of_sentence)
+            vectorized_sentences.append(array)
     vectorized_sentences_np = np.array(vectorized_sentences)
     return removed_indexes, vectorized_sentences_np
 
