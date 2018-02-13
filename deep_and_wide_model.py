@@ -4,20 +4,17 @@ import time
 
 import keras.callbacks
 import numpy as np
-import pandas as pd
 from gensim.models.keyedvectors import KeyedVectors
 from keras.preprocessing import sequence
-from nltk.tokenize import TweetTokenizer
 
-COMMENT_TEXT_INDEX = 'comment_text'
-TOXIC_TEXT_INDEX = 'toxic'
-SEVERE_TOXIC_TEXT_INDEX = 'severe_toxic'
-OBSCENE_TEXT_INDEX = 'obscene'
-THREAT_TEXT_INDEX = 'threat'
-INSULT_TEXT_INDEX = 'insult'
-IDENTITY_HATE_TEXT_INDEX = 'identity_hate'
-TRUTH_LABELS = [TOXIC_TEXT_INDEX, SEVERE_TOXIC_TEXT_INDEX, OBSCENE_TEXT_INDEX, THREAT_TEXT_INDEX, INSULT_TEXT_INDEX,
-                IDENTITY_HATE_TEXT_INDEX]
+from utils import TOXIC_TEXT_INDEX, TRUTH_LABELS, COMMENT_TEXT_INDEX
+from utils import load_data, vectorise_tweets, tokenize_tweets
+
+FILE_NAME_STRING_DELIMITER = "_"
+FILE_NAME_STRING_FORMATING = "%d_%m_%y_%H:%M"
+KERAS_MODEL_DIRECTORY = 'keras_models/{}'
+TRAIN_HISTORY_DICT_PATH = 'keras_models/{}/trainHistoryDict'
+MODEL_SAVE_PATH = 'keras_models/{}/keras_model.h5'
 
 MAXLEN = 3000
 
@@ -49,7 +46,7 @@ def main(data_file, w2v_model, testing, expt_name="test"):
 
     data_dict = split_train_test(np_text_array, truth_dictionary)
 
-    key = TOXIC_TEXT_INDEX # testing with 1 key for now
+    key = TOXIC_TEXT_INDEX  # testing with 1 key for now
     x_train = data_dict[key][X_TRAIN_DATA_INDEX]
     padded_x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
     y_train = data_dict[key][Y_TRAIN_DATA_INDEX]
@@ -86,10 +83,10 @@ def extract_numpy_vectors(df):
 
 
 def save_model_details_and_training_history(expt_name, history, model):
-    folder = time.strftime("%d_%m_%y_%H:%M") + "_" + expt_name
-    os.makedirs('keras_models/{}'.format(folder), exist_ok=True)
-    model.save('keras_models/{}/keras_model.h5'.format(folder))
-    with open('keras_models/{}/trainHistoryDict'.format(folder), 'wb') as file_pi:
+    folder = time.strftime(FILE_NAME_STRING_FORMATING) + FILE_NAME_STRING_DELIMITER + expt_name
+    os.makedirs(KERAS_MODEL_DIRECTORY.format(folder), exist_ok=True)
+    model.save(MODEL_SAVE_PATH.format(folder))
+    with open(TRAIN_HISTORY_DICT_PATH.format(folder), 'wb') as file_pi:
         pickle.dump(history.history, file_pi)
 
 
@@ -134,49 +131,10 @@ def split_train_test(np_text_array, truth_dictionary):
     for key in truth_dictionary:
         X_train, X_test, y_train, y_test = train_test_split(np_text_array, truth_dictionary[key], test_size=0.1,
                                                             random_state=42)
-        data_dictionary[key] = X_train, X_test, y_train, y_test
+
+        data_dictionary[key] = {X_TRAIN_DATA_INDEX: X_train, X_TEST_DATA_INDEX: X_test, Y_TRAIN_DATA_INDEX: y_train,
+                                Y_TEST_DATA_INDEX: y_test}
     return data_dictionary
-
-
-def vectorise_tweets(model, df):
-    # vectorise sentences
-    df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(
-        lambda x: _vectorize_text_if_possible_else_return_None(x, model.wv))
-
-
-def _vectorize_text_if_possible_else_return_None(tokenized_sentence, w2vmodel):
-    vector_rep_of_sentence = []
-    # check if i can use wv model to vectorize the sentence
-    for word in tokenized_sentence:
-        if word in model.vocab:
-            vector_rep_of_sentence.append(w2vmodel[word])
-
-    # if i cannot do so, remove the sentence
-    if not vector_rep_of_sentence:
-        return None
-
-    # else turn it into a numpy array
-    else:
-        return np.array(vector_rep_of_sentence)
-
-
-def tokenize_tweets(df):
-    tknzr = TweetTokenizer()
-    # tokenize sentences
-    df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(lambda x: tknzr.tokenize(x))
-
-
-def load_data(data_file):
-    """
-
-    :param data_file: path to train data file
-    :type data_file: str
-    :return: list of strings [text_data] containing each row of text in traing dataset, and
-     dictionary of truth labels with key as dataset name and value as a list containing labels for each row in text_data
-    :rtype: full_truth_labels_data : dictionary of lists of ints,  text_data : list of str
-    """
-    df = pd.read_csv(data_file)
-    return df
 
 
 def drop_words_with_no_vectors_at_all_in_w2v(df):
