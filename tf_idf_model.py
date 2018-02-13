@@ -15,6 +15,9 @@ def return_tf_idf_score(df):
 
 if __name__ == "__main__":
     SAMPLE_DATA_FILE = './data/sample.csv'
+    DATA_FILE = './data/train.csv'
 
     df = load_data(SAMPLE_DATA_FILE)
+    print(return_tf_idf_score(df))
+    df = load_data(DATA_FILE)
     print(return_tf_idf_score(df))
