@@ -9,11 +9,12 @@ def return_tf_idf_score(df):
     :return:
     :rtype:
     """
-    print(df)
+    score = 0.9
+    return score
 
 
 if __name__ == "__main__":
     SAMPLE_DATA_FILE = './data/sample.csv'
 
     df = load_data(SAMPLE_DATA_FILE)
-    print(df[TOXIC_TEXT_INDEX])
+    print(return_tf_idf_score(df))
