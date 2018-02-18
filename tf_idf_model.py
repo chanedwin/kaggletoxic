@@ -26,14 +26,14 @@ def return_tf_idf_sparse_matrix(df):
 def build_logistic_regression_model(vector):
     y = df[TRUTH_LABELS]
     for i, col in enumerate(TRUTH_LABELS):
-        lr = LogisticRegression(random_state=i,class_weight='balanced')
+        lr = LogisticRegression(random_state=i, class_weight='balanced', solver='sag', n_jobs=4, max_iter=1000)
         print("Building {} model for column:{""}".format(i, col))
         lr.fit(vector, y[col])
-    pred = lr.predict(vector)
-    col = 'identity_hate'
-    print("Column:", col)
-    print('\nConfusion matrix\n', confusion_matrix(y[col], pred))
-    print(classification_report(y[col], pred))
+        pred = lr.predict(vector)
+        col = str(col)
+        print("Column:", col)
+        print('\nConfusion matrix\n', confusion_matrix(y[col], pred))
+        print(classification_report(y[col], pred))
     return lr
 
 
