@@ -25,6 +25,17 @@ def load_data(data_file):
     df = pd.read_csv(data_file)
     return df
 
+def dataframe_to_list(df):
+    """
+
+        :param: dataframe
+        :type: -
+        :return: removes index of dataframe and lists values as a single list
+        :rtype: -
+        """
+    df = df.tolist()
+    return df
+
 
 def vectorise_tweets(model, df):
     # vectorise sentences
