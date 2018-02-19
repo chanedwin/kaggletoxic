@@ -40,10 +40,10 @@ def dataframe_to_list(df):
 def vectorise_tweets(model, df):
     # vectorise sentences
     df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(
-        lambda x: _vectorize_text_if_possible_else_return_None(x, model.wv))
+        lambda x: vectorize_text_if_possible_else_return_None(x, model.wv))
 
 
-def _vectorize_text_if_possible_else_return_None(tokenized_sentence, model):
+def vectorize_text_if_possible_else_return_None(tokenized_sentence, model):
     vector_rep_of_sentence = []
     # check if i can use wv model to vectorize the sentence
     for word in tokenized_sentence:
