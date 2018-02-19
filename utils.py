@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from nltk.tokenize import TweetTokenizer
 
+
+
 COMMENT_TEXT_INDEX = 'comment_text'
 TOXIC_TEXT_INDEX = 'toxic'
 SEVERE_TOXIC_TEXT_INDEX = 'severe_toxic'
@@ -35,6 +37,17 @@ def dataframe_to_list(df):
         """
     df = df.tolist()
     return df
+
+
+def concatnator(*dfs, axis):
+    """
+           :param: dataframe
+           :type: -
+           :return: removes index of dataframe and lists values as a single list
+           :rtype: -
+           """
+    concatnated = pd.concat([*dfs], axis=axis)
+    return concatnated
 
 
 def vectorise_tweets(model, df):
