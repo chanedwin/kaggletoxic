@@ -12,21 +12,19 @@ def return_tf_idf_sparse_matrix(df):
     :return: sparse matrix
     :rtype: value
     """
-    vectorizer = TfidfVectorizer(stop_words='english')
+    vectorizer = TfidfVectorizer(stop_words='english', min_df=4, max_features=10000)
     lst = dataframe_to_list(df)
     tf_idf_sparse_matrix = vectorizer.fit_transform(lst)
-    idf = vectorizer.idf_
-    print(dict(zip(vectorizer.get_feature_names(), idf)))
-    print(vectorizer.get_feature_names())
-    print(vectorizer.get_stop_words())
-    print(vectorizer.fit(lst))
+    print("\nFeatures of vectorizer\n", vectorizer.get_feature_names())
+    print("\nRemoved Features\n", vectorizer.get_stop_words())
+    print("\nHyperparameters of vectorizer\n", vectorizer.fit(lst))
     return tf_idf_sparse_matrix
 
 
 def build_logistic_regression_model(vector):
     y = df[TRUTH_LABELS]
     for i, col in enumerate(TRUTH_LABELS):
-        lr = LogisticRegression(random_state=i, class_weight='balanced', solver='sag', n_jobs=4, max_iter=1000)
+        lr = LogisticRegression(random_state=i, class_weight='balanced', solver='sag', n_jobs=4, max_iter=10000)
         print("Building {} model for column:{""}".format(i, col))
         lr.fit(vector, y[col])
         pred = lr.predict(vector)
@@ -43,6 +41,6 @@ if __name__ == "__main__":
 
     df = load_data(DATA_FILE)
     vector = return_tf_idf_sparse_matrix(df[COMMENT_TEXT_INDEX])
-    print(df[TRUTH_LABELS])
-    print(build_logistic_regression_model(vector))
+    aggressively_positive_model_report = build_logistic_regression_model(vector)
+    print(aggressively_positive_model_report)
 
