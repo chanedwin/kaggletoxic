@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from nltk.tokenize import TweetTokenizer
 
+
+
 COMMENT_TEXT_INDEX = 'comment_text'
 TOXIC_TEXT_INDEX = 'toxic'
 SEVERE_TOXIC_TEXT_INDEX = 'severe_toxic'
@@ -25,14 +27,36 @@ def load_data(data_file):
     df = pd.read_csv(data_file)
     return df
 
+def dataframe_to_list(df):
+    """
+
+        :param: dataframe
+        :type: -
+        :return: removes index of dataframe and lists values as a single list
+        :rtype: -
+        """
+    df = df.tolist()
+    return df
+
+
+def concatnator(*dfs, axis):
+    """
+           :param: dataframe
+           :type: -
+           :return: removes index of dataframe and lists values as a single list
+           :rtype: -
+           """
+    concatnated = pd.concat([*dfs], axis=axis)
+    return concatnated
+
 
 def vectorise_tweets(model, df):
     # vectorise sentences
     df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(
-        lambda x: _vectorize_text_if_possible_else_return_None(x, model.wv))
+        lambda x: vectorize_text_if_possible_else_return_None(x, model.wv))
 
 
-def _vectorize_text_if_possible_else_return_None(tokenized_sentence, model):
+def vectorize_text_if_possible_else_return_None(tokenized_sentence, model):
     vector_rep_of_sentence = []
     # check if i can use wv model to vectorize the sentence
     for word in tokenized_sentence:
