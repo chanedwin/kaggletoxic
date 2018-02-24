@@ -243,7 +243,7 @@ if __name__ == "__main__":
     main(SAMPLE_DATA_FILE, model, testing=True, expt_name=EXPT_NAME)
     """
     print("done with tests, loading true model")
-    USE_WORD2VEC = True
+    USE_WORD2VEC = False
     EXPT_NAME = "REAL"
     DATA_FILE = './data/train.csv'
     W2V_MODEL = './models/w2v.840B.300d.txt'
