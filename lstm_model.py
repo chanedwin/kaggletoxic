@@ -11,7 +11,7 @@ from keras.preprocessing import sequence
 
 from utils import TOXIC_TEXT_INDEX, COMMENT_TEXT_INDEX
 from utils import transform_text_in_df_return_w2v_np_vectors, extract_truth_labels_as_dict, split_train_test, load_data, \
-    tokenize_tweets
+    tokenize_sentences, shorten_sentences
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -49,8 +49,9 @@ def lstm_main(data_file, w2v_model, testing, use_w2v=True, expt_name="test"):
     # process data
     print("processing data")
     if use_w2v:
-        tokenize_tweets(df)
-        np_text_array = transform_text_in_df_return_w2v_np_vectors(df, w2v_model)
+
+        summarized_sentences = shorten_sentences(df)
+        np_text_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
         truth_dictionary = extract_truth_labels_as_dict(df)
         data_dict = split_train_test(np_text_array, truth_dictionary)
         key = TOXIC_TEXT_INDEX  # testing with 1 key for now
@@ -79,6 +80,8 @@ def lstm_main(data_file, w2v_model, testing, use_w2v=True, expt_name="test"):
         save_model_details_and_training_history(expt_name, history, model)
         return x_predict  # THIS IS FAKE
     else:
+        summarized_sentences = shorten_sentences(df)
+
         from keras.preprocessing.text import Tokenizer
 
         tokenizer = Tokenizer(num_words=MAX_NUM_WORDS_ONE_HOT,
@@ -86,9 +89,8 @@ def lstm_main(data_file, w2v_model, testing, use_w2v=True, expt_name="test"):
                               lower=True,
                               split=" ",
                               char_level=False)
-
-        tokenizer.fit_on_texts(df[COMMENT_TEXT_INDEX])
-        transformed_text = tokenizer.texts_to_sequences(df[COMMENT_TEXT_INDEX])
+        tokenizer.fit_on_texts(summarized_sentences)
+        transformed_text = tokenizer.texts_to_sequences(summarized_sentences)
         vocab_size = len(tokenizer.word_counts)
 
         print("vocab length is", len(tokenizer.word_counts))
@@ -163,27 +165,3 @@ def build_keras_embeddings_model(max_size):
                   optimizer='rmsprop',
                   metrics=['accuracy'])
     return model
-
-
-def tf_idf_summarizer(text):
-    import re
-    document = re.sub("[ ^A-Za-z.-]+"," ", text)
-
-    document = document.replace("-","")
-    document = document.replace("...","")
-    document = document.replace("Mr.", "Mr").replace("Mrs.", "Mrs")
-
-    from sklearn.feature_extraction.text import CountVectorizer
-    count_vect = CountVectorizer()
-    count_vect = count_vect.fit(document)
-    freq_term_matrix = count_vect.transform(train_data)
-
-    from sklearn.feature_extraction.text import TfidfTransformer
-
-    tfidf = TfidfTransformer(norm="l2")
-    tfidf.fit(freq_term_matrix)
-
-    doc_freq_term = count_vect.transform([doc])
-    doc_tfidf_matrix = tfidf.transform(doc_freq_term)
-
-

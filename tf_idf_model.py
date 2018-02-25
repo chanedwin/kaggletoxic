@@ -27,7 +27,7 @@ def build_logistic_regression_model(vector):
     results = {}
     for i, col in enumerate(TRUTH_LABELS):
         lr = LogisticRegression(random_state=i, class_weight='balanced', solver='sag', n_jobs=4, max_iter=10000)
-        print("Building {} model for column:{""}".format(i, col))
+        print("Building {} model for column:{}".format(i, col))
         lr.fit(vector, y[col])
         pred = lr.predict(vector)
         col = str(col)
