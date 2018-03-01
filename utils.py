@@ -76,3 +76,5 @@ def tokenize_tweets(df):
     tknzr = TweetTokenizer()
     # tokenize sentences
     df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(lambda x: tknzr.tokenize(x))
+
+
