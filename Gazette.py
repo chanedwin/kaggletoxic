@@ -1,12 +1,11 @@
-from utils import load_data, dataframe_to_list, concatnator, COMMENT_TEXT_INDEX, TRUTH_LABELS
+from utils import load_data, dataframe_to_list, COMMENT_TEXT_INDEX
+from tf_idf_model import build_logistic_regression_model
 import pandas as pd
-from keras.preprocessing.text import Tokenizer
 import itertools
 from nltk.tokenize import TweetTokenizer
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
-from sklearn.linear_model import LogisticRegression
-from tf_idf_model import build_logistic_regression_model
+
 
 def bad_word_processor(data):
     bw_df = pd.read_csv(data, sep='delimiter', header=None)
@@ -35,7 +34,6 @@ def filt(keep, data):
     keep_dict = dict(zip(keep, transformed_keep))
     sparse_gazette_matrixes = []
     for document in tokenized_data:
-
         sparse_gazette_array = np.zeros(len(keep)) #create array for document
         for word in document :
             if word in keep_dict:
@@ -53,7 +51,7 @@ if __name__ == "__main__":
     DATA_FILE = './data/train.csv'
 
     df = load_data(DATA_FILE)
-    bad_words = bad_word_processor(COMBI)
+    bad_words = bad_word_processor(UNPROCESSED_BAD_WORDS_DATA)
     sparse_gazette_matrixes = filt(bad_words, df[COMMENT_TEXT_INDEX])
     lr = build_logistic_regression_model(sparse_gazette_matrixes, df)
 

@@ -6,7 +6,7 @@ from scipy import sparse
 import time
 
 
-def return_tf_idf_sparse_matrix(df):
+def tf_idf_vectorisor(df):
     """
     function should return tf-idf logistic regression score
     :param df: list
@@ -18,17 +18,17 @@ def return_tf_idf_sparse_matrix(df):
     vect_char2 = TfidfVectorizer(stop_words='english', analyzer='char', ngram_range=(2, 5))
     vect_word = TfidfVectorizer(stop_words='english')
     lst = dataframe_to_list(df)
-    tf_idf_sparse_matrix_char = vect_char.fit_transform(lst)
-    tf_idf_sparse_matrix_word = vect_word.fit_transform(lst)
-    tf_idf_sparse_matrix_char2 = vect_char2.fit_transform(lst)
-    tf_idf_sparse_matrix_combined = sparse.hstack([tf_idf_sparse_matrix_word, tf_idf_sparse_matrix_char, tf_idf_sparse_matrix_char2])
+    sparse_matrix_word = vect_word.fit_transform(lst)
+    sparse_matrix_char = vect_char.fit_transform(lst)
+    sparse_matrix_char2 = vect_char2.fit_transform(lst)
+    sparse_matrix_combined = sparse.hstack([sparse_matrix_word, sparse_matrix_char, sparse_matrix_char2])
     #print("\nFeatures of vectorizer_character\n", vect_char.get_feature_names())
     #print("\nRemoved Features of vectorizer_character \n", vect_char.get_stop_words())
     #print("\nHyperparameters of vectorizer_character\n", vect_char.fit(lst))
     #print("\nFeatures of vectorizer_word\n", vect_word.get_feature_names())
     #print("\nRemoved Features of vectorizer_word \n", vect_word.get_stop_words())
     #print("\nHyperparameters of vectorizer_word\n", vect_word.fit(lst))
-    return tf_idf_sparse_matrix_combined
+    return sparse_matrix_combined
 
 
 def build_logistic_regression_model(vector, data):
@@ -52,6 +52,6 @@ if __name__ == "__main__":
     DATA_FILE = './data/train.csv'
 
     df = load_data(DATA_FILE)
-    vector = return_tf_idf_sparse_matrix(df[COMMENT_TEXT_INDEX])
+    vector = tf_idf_vectorisor(df[COMMENT_TEXT_INDEX])
     aggressively_positive_model_report = build_logistic_regression_model(vector, df)
 
