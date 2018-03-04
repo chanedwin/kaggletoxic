@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from gensim.models.keyedvectors import KeyedVectors
 from nltk.tokenize import TweetTokenizer
 
 X_TRAIN_DATA_INDEX = 0
