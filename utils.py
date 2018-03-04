@@ -84,8 +84,7 @@ def tokenize_tweets(df):
     tknzr = TweetTokenizer()
     # tokenize sentences
     df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(lambda x: tknzr.tokenize(x))
-
-
+    
 def transform_text_in_df_return_w2v_np_vectors(df, w2v_model):
     vectorise_tweets(w2v_model, df)
     drop_words_with_no_vectors_at_all_in_w2v(df)  # because some text return nothing, must remove ground truth too
