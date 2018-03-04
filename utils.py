@@ -87,12 +87,13 @@ def tokenize_sentences(list_of_sentences):
     return [i for i in map(lambda x: tknzr.tokenize(x), list_of_sentences)]
 
 
-def shorten_sentences(df):
-    return summarize_long_sentences(df[COMMENT_TEXT_INDEX].values)
+def shorten_sentences(sentences):
+    return summarize_long_sentences(sentences)
 
 
 def transform_text_in_df_return_w2v_np_vectors(list_of_sentences, w2v_model):
     list_of_sentences = tokenize_sentences(list_of_sentences)
+    print(list_of_sentences)
     list_of_sentences = vectorise_tweets(w2v_model, list_of_sentences)
     list_of_sentences = drop_words_with_no_vectors_at_all_in_w2v(list_of_sentences)  # because some text return nothing, must remove ground truth too
     np_text_array = extract_numpy_vectors_from_w2v_labels(list_of_sentences)

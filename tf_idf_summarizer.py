@@ -42,12 +42,12 @@ def summarize_long_sentences(data, max_size=300, max_sentences=10):
             doc_matrix = story_dense.tolist()[0]
             # Get Top Ranking Sentences and join them as a summary
             top_sents = rank_sentences(document, doc_matrix, feature_names, top_n=max_sentences)
-            summary = '.'.join([cleaned_documents[index].split('.')[i]
-                                for i in top_sents])
+            summary = "\n".join([nltk.sent_tokenize(cleaned_documents[index])[i] for i in top_sents])
             return_list.append(summary)
         else:
             return_list.append(cleaned_documents[index])
     assert len(data) == len(return_list)
+    print(return_list)
     return return_list
 
 
@@ -58,7 +58,6 @@ def clean_document(document):
     """
     # Remove all characters outside of Alpha Numeric
     # and some punctuation
-    document = re.sub('[^A-Za-z .-]+', ' ', document)
     document = document.replace('-', '')
     document = document.replace('...', '')
     document = document.replace('Mr.', 'Mr').replace('Mrs.', 'Mrs')
@@ -143,7 +142,7 @@ def rank_sentences(doc, doc_matrix, feature_names, top_n=3):
                 break
         if no_change:
             break
-    return sentence_indexes
+    return sorted(sentence_indexes)
 
 
 if __name__ == "__main__":
