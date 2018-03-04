@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from gensim.models.keyedvectors import KeyedVectors
 from nltk.tokenize import TweetTokenizer
 
 from tf_idf_summarizer import summarize_long_sentences
