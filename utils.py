@@ -1,8 +1,12 @@
 import numpy as np
 import pandas as pd
+from gensim.models.keyedvectors import KeyedVectors
 from nltk.tokenize import TweetTokenizer
 
-
+X_TRAIN_DATA_INDEX = 0
+X_TEST_DATA_INDEX = 1
+Y_TRAIN_DATA_INDEX = 2
+Y_TEST_DATA_INDEX = 3
 
 COMMENT_TEXT_INDEX = 'comment_text'
 TOXIC_TEXT_INDEX = 'toxic'
@@ -13,6 +17,9 @@ INSULT_TEXT_INDEX = 'insult'
 IDENTITY_HATE_TEXT_INDEX = 'identity_hate'
 TRUTH_LABELS = [TOXIC_TEXT_INDEX, SEVERE_TOXIC_TEXT_INDEX, OBSCENE_TEXT_INDEX, THREAT_TEXT_INDEX, INSULT_TEXT_INDEX,
                 IDENTITY_HATE_TEXT_INDEX]
+
+DATA_FILE = './data/train.csv'
+W2V_MODEL = './models/w2v.840B.300d.txt'
 
 
 def load_data(data_file):
@@ -26,6 +33,7 @@ def load_data(data_file):
     """
     df = pd.read_csv(data_file)
     return df
+
 
 def dataframe_to_list(df):
     """
@@ -76,5 +84,51 @@ def tokenize_tweets(df):
     tknzr = TweetTokenizer()
     # tokenize sentences
     df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(lambda x: tknzr.tokenize(x))
+    
+def transform_text_in_df_return_w2v_np_vectors(df, w2v_model):
+    vectorise_tweets(w2v_model, df)
+    drop_words_with_no_vectors_at_all_in_w2v(df)  # because some text return nothing, must remove ground truth too
+    np_text_array = extract_numpy_vectors_from_w2v_labels(df)
+    return np_text_array
 
 
+def extract_numpy_vectors_from_w2v_labels(df):
+    text = np.array(df[COMMENT_TEXT_INDEX].as_matrix())
+    return text
+
+
+def extract_truth_labels_as_dict(df):
+    dictionary_of_truth_labels = {}
+    for key in TRUTH_LABELS:
+        value = np.array(df[key].as_matrix())
+        dictionary_of_truth_labels[key] = value
+    return dictionary_of_truth_labels
+
+
+def load_w2v_model_from_path(model_path, binary_input=False):
+    """
+    :param model_path: path to w2v model
+    :type model_path: string
+    :param binary_input: True : binary input, False : text input
+    :type binary_input: boolean
+    :return: loaded w2v model
+    :rtype: KeyedVectors object
+    """
+    w2v_model = KeyedVectors.load_word2vec_format(model_path, binary=binary_input)
+    return w2v_model
+
+
+def split_train_test(np_text_array, truth_dictionary):
+    from sklearn.model_selection import train_test_split
+    data_dictionary = {}
+    for key in truth_dictionary:
+        X_train, X_test, y_train, y_test = train_test_split(np_text_array, truth_dictionary[key], test_size=0.1,
+                                                            random_state=42)
+
+        data_dictionary[key] = {X_TRAIN_DATA_INDEX: X_train, X_TEST_DATA_INDEX: X_test, Y_TRAIN_DATA_INDEX: y_train,
+                                Y_TEST_DATA_INDEX: y_test}
+    return data_dictionary
+
+
+def drop_words_with_no_vectors_at_all_in_w2v(df):
+    df.drop(df[df.comment_text.isnull()].index, inplace=True)
