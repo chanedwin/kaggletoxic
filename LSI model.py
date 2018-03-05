@@ -6,15 +6,15 @@ from tf_idf_model import tf_idf_vectorisor_word
 from keras.preprocessing.text import text_to_word_sequence
 
 
-
 def build_LSI_model(lst):
 
-    corpus = [text_to_word_sequence(sentence) for sentence in lst]
-    dictionary = corpora.Dictionary(corpus)
-    print(dictionary)
+    texts = [text_to_word_sequence(sentence) for sentence in lst]
+    dictionary = corpora.Dictionary(texts)
+    corpus = [dictionary.doc2bow(text) for text in texts]
     tfidf = models.TfidfModel(corpus)
     corpus_tfidf = tfidf[corpus]
-    print(corpus_tfidf)
+    lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=500)
+    print(lsi.get_topics())
 
 
 
