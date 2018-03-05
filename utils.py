@@ -31,6 +31,7 @@ def load_data(data_file):
     :rtype: full_truth_labels_data : dictionary of lists of ints,  text_data : list of str
     """
     df = pd.read_csv(data_file)
+
     return df
 
 
