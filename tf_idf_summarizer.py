@@ -2,9 +2,11 @@ import re
 
 import nltk
 from nltk.corpus import stopwords
+from nltk.metrics.distance import jaccard_distance
 
 stop = stopwords.words('english')
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+import numpy as np
 
 
 # Noun Part of Speech Tags used by NLTK
@@ -12,43 +14,66 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 # http://www.winwaed.com/blog/2011/11/08/part-of-speech-tags/
 
 
-def summarize_long_sentences(data, max_size=300, max_sentences=10):
-    # Load corpus data used to train the TF-IDF Transformer
-    cleaned_documents = []
+def summarize_long_sentences(array_of_strings, max_size=300, max_sentences=10):
+    assert isinstance(array_of_strings, np.ndarray)
+    assert type(array_of_strings[0]) == str
+    print("starting summarization")
+    # Load corpus array_of_strings used to train the TF-IDF Transformer
     training_data = []
-    for index, document in enumerate(data):
+    for index, document in enumerate(array_of_strings):
         cleaned_document = clean_document(document)
-        cleaned_documents.append(cleaned_document)
-        doc = remove_stop_words(cleaned_document)
-        training_data.append(doc)
-
-    # Merge corpus data and new document data
+        training_data.append(cleaned_document)
+    print("done with cleaning")
+    # Merge corpus array_of_strings and new document array_of_strings
     # Fit and Transform the term frequencies into a vector
-    count_vect = CountVectorizer()
+    count_vect = CountVectorizer(stop_words='english')
     count_vect = count_vect.fit(training_data)
     freq_term_matrix = count_vect.transform(training_data)
     feature_names = count_vect.get_feature_names()
     # Fit and Transform the TfidfTransformer
     tfidf = TfidfTransformer(norm="l2")
     tfidf.fit(freq_term_matrix)
-
+    print("done with fitting")
     return_list = []
     # Get the dense tf-idf matrix for the document
+    import multiprocessing
+    pool = multiprocessing.Pool(12)
+    count = 0
     for index, document in enumerate(training_data):
-        if len(document.split()) > max_size:
-            story_freq_term_matrix = count_vect.transform([document])
-            story_tfidf_matrix = tfidf.transform(story_freq_term_matrix)
-            story_dense = story_tfidf_matrix.todense()
-            doc_matrix = story_dense.tolist()[0]
-            # Get Top Ranking Sentences and join them as a summary
-            top_sents = rank_sentences(document, doc_matrix, feature_names, top_n=max_sentences)
-            summary = "\n".join([nltk.sent_tokenize(cleaned_documents[index])[i] for i in top_sents])
-            return_list.append(summary)
+        tokenized_sentence = document.split()
+        if len(tokenized_sentence) > 300:
+            count += 1
+            tokenized_sentences = nltk.sent_tokenize(document)
+            if len(tokenized_sentences) == 1:  # treash sentence
+                return_list.append((index, training_data[index].split()[:300]))
+            else:
+                return_list.append((index, parallel_tf_idf(count_vect, training_data[index], document,
+                                                           feature_names,
+                                                           max_sentences, tfidf)))
         else:
-            return_list.append(cleaned_documents[index])
-    assert len(data) == len(return_list)
-    print(return_list)
-    return return_list
+            return_list.append((index, training_data[index]))
+    pool.close()
+    pool.join()
+    return_list.sort(key=lambda x: x[0])
+    new_list = []
+    n_count = 0
+    for result in return_list:
+        new_list.append(result[1])
+
+    assert len(array_of_strings) == len(new_list)
+    print(count, n_count)
+    return new_list
+
+
+def parallel_tf_idf(count_vect, cleaned_document, document, feature_names, max_sentences, tfidf):
+    story_freq_term_matrix = count_vect.transform([document])
+    story_tfidf_matrix = tfidf.transform(story_freq_term_matrix)
+    story_dense = story_tfidf_matrix.todense()
+    doc_matrix = story_dense.tolist()[0]
+    # Get Top Ranking Sentences and join them as a summary
+    top_sents = rank_sentences(document, doc_matrix, feature_names, top_n=max_sentences)
+    summary = "\n".join([nltk.sent_tokenize(cleaned_document)[i] for i in top_sents])
+    return summary
 
 
 def clean_document(document):
@@ -125,29 +150,40 @@ def rank_sentences(doc, doc_matrix, feature_names, top_n=3):
     ranked_sents = sorted(ranked_sents, key=lambda x: x[1] * -1)
     selected_sents = ranked_sents[:top_n]
     sentence_indexes = [i[0] for i in selected_sents]
-    while True:
-        no_change = True
-        for i in range(len(sentences)):
-            sentence = sentences[i]
-            score = 1
-            if i in sentence_indexes:
-                continue
-            for index in sentence_indexes:
-                selected_sentence_raw = sentences[index]
-                from nltk.metrics.distance import jaccard_distance
-                score = min(score, jaccard_distance(set(sentence), set(selected_sentence_raw)))
-            if score > 0.8:
-                sentence_indexes.append(i)
-                no_change = False
+    set_sentences = [set(i) for i in sentences]
+    for i in range(len(set_sentences)):
+        if i in sentence_indexes:
+            continue
+        sentence = set_sentences[i]
+        score = 1
+
+        for index in sentence_indexes:
+            selected_sentence_raw = set_sentences[index]
+            score = min(score, jaccard_distance(set(sentence), set(selected_sentence_raw)))
+            if score < 0.9:
                 break
-        if no_change:
-            break
+        if score > 0.9:
+            sentence_indexes.append(i)
     return sorted(sentence_indexes)
 
 
 if __name__ == "__main__":
     from utils import load_data, COMMENT_TEXT_INDEX
 
-    SAMPLE_DATA_FILE = './data/sample.csv'
-    df = load_data(SAMPLE_DATA_FILE)
-    summarize_long_sentences(df[COMMENT_TEXT_INDEX], max_size=10)
+    data_file = './data/train.csv'
+    df = load_data(data_file)
+    list_of_documents = df[COMMENT_TEXT_INDEX].values
+    documents = summarize_long_sentences(list_of_documents)
+    size = {}
+    for document in documents:
+        length = len(document.split())
+        if length in size:
+            size[length] += 1
+        else:
+            size[length] = 1
+    size_list = [i for i in size.items()]
+    size_list.sort(key=lambda x: x[0], reverse=True)
+    print(size_list)
+    import pickle
+
+    pickle.dump(documents, open("./data/newtrain.p", "wb"))
