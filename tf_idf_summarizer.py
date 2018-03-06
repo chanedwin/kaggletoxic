@@ -2,7 +2,6 @@ import re
 
 import nltk
 from nltk.corpus import stopwords
-from nltk.metrics.distance import jaccard_distance
 
 stop = stopwords.words('english')
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
@@ -37,14 +36,15 @@ def summarize_long_sentences(array_of_strings, max_size=300, max_sentences=10):
     return_list = []
     # Get the dense tf-idf matrix for the document
     import multiprocessing
-    pool = multiprocessing.Pool(12)
     count = 0
     for index, document in enumerate(training_data):
+        if index % 10000 == 0:
+            print("progress : {} out of {}".format(index, len(training_data)))
         tokenized_sentence = document.split()
         if len(tokenized_sentence) > 300:
             count += 1
-            tokenized_sentences = nltk.sent_tokenize(document)
-            if len(tokenized_sentences) == 1:  # treash sentence
+            tokenized_sentence_by_sentence = nltk.sent_tokenize(document)
+            if len(tokenized_sentence_by_sentence) == 1 or len(tokenized_sentence_by_sentence) >= 60:  # treash sentence
                 return_list.append((index, training_data[index].split()[:300]))
             else:
                 return_list.append((index, parallel_tf_idf(count_vect, training_data[index], document,
@@ -52,16 +52,12 @@ def summarize_long_sentences(array_of_strings, max_size=300, max_sentences=10):
                                                            max_sentences, tfidf)))
         else:
             return_list.append((index, training_data[index]))
-    pool.close()
-    pool.join()
     return_list.sort(key=lambda x: x[0])
     new_list = []
-    n_count = 0
     for result in return_list:
         new_list.append(result[1])
-
     assert len(array_of_strings) == len(new_list)
-    print(count, n_count)
+    print(new_list)
     return new_list
 
 
@@ -137,7 +133,7 @@ def rank_sentences(doc, doc_matrix, feature_names, top_n=3):
     """
     sents = nltk.sent_tokenize(doc)
     sentences = [nltk.word_tokenize(sent) for sent in sents]
-
+    """
     tfidf_sent = [[doc_matrix[feature_names.index(w.lower())]
                    for w in sent if w.lower() in feature_names]
                   for sent in sentences]
@@ -147,23 +143,24 @@ def rank_sentences(doc, doc_matrix, feature_names, top_n=3):
     sent_values = [sum(sent) / doc_val for sent in tfidf_sent]
     # Apply Position Weights
     ranked_sents = [pair for pair in zip(range(len(sent_values)), sent_values)]
+    print(ranked_sents)
     ranked_sents = sorted(ranked_sents, key=lambda x: x[1] * -1)
     selected_sents = ranked_sents[:top_n]
     sentence_indexes = [i[0] for i in selected_sents]
+    """
+    sentence_indexes = [1,]
     set_sentences = [set(i) for i in sentences]
+    index_sentence_set = set()
+    for index in sentence_indexes:
+        index_sentence_set.update(set_sentences[index])
     for i in range(len(set_sentences)):
         if i in sentence_indexes:
             continue
         sentence = set_sentences[i]
-        score = 1
-
-        for index in sentence_indexes:
-            selected_sentence_raw = set_sentences[index]
-            score = min(score, jaccard_distance(set(sentence), set(selected_sentence_raw)))
-            if score < 0.9:
-                break
-        if score > 0.9:
+        combined_set = sentence.intersection(index_sentence_set)
+        if len(combined_set) < len(sentence) * 3 // 4:  # at least 1/4 of the words are novel
             sentence_indexes.append(i)
+            index_sentence_set.update(sentence)
     return sorted(sentence_indexes)
 
 
@@ -176,7 +173,7 @@ if __name__ == "__main__":
     documents = summarize_long_sentences(list_of_documents)
     size = {}
     for document in documents:
-        length = len(document.split())
+        length = len(document)
         if length in size:
             size[length] += 1
         else:
