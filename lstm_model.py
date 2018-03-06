@@ -11,7 +11,8 @@ from keras.preprocessing import sequence
 
 from utils import TOXIC_TEXT_INDEX, COMMENT_TEXT_INDEX
 from utils import transform_text_in_df_return_w2v_np_vectors, extract_truth_labels_as_dict, split_train_test, load_data, \
-    tokenize_sentences, shorten_sentences
+    tokenize_sentences
+from tf_idf_summarizer import summarize_long_sentences
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -49,8 +50,8 @@ def lstm_main(data_file, w2v_model, testing, use_w2v=True, expt_name="test"):
     # process data
     print("processing data")
     if use_w2v:
-
-        summarized_sentences = shorten_sentences(df) # list of documents(lists of sentences)
+        sentences = df[COMMENT_TEXT_INDEX].values
+        summarized_sentences = summarize_long_sentences(sentences) # list of documents(lists of sentences)
         np_text_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
         max_len = 0
         for vector in np_text_array :
@@ -85,7 +86,7 @@ def lstm_main(data_file, w2v_model, testing, use_w2v=True, expt_name="test"):
         return x_predict  # THIS IS FAKE
     else:
         sentences = df[COMMENT_TEXT_INDEX].values
-        summarized_sentences = shorten_sentences(sentences) # list of documents(lists of sentences)
+        summarized_sentences = summarize_long_sentences(sentences) # list of documents(lists of sentences)
 
         from keras.preprocessing.text import Tokenizer
 

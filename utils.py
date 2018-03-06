@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 from nltk.tokenize import TweetTokenizer
-
-from tf_idf_summarizer import summarize_long_sentences
+from gensim.models import KeyedVectors
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -84,10 +83,6 @@ def tokenize_sentences(list_of_sentences):
     tknzr = TweetTokenizer()
     # tokenize sentences
     return [i for i in map(lambda x: tknzr.tokenize(x), list_of_sentences)]
-
-
-def shorten_sentences(sentences):
-    return summarize_long_sentences(sentences)
 
 
 def transform_text_in_df_return_w2v_np_vectors(list_of_sentences, w2v_model):
