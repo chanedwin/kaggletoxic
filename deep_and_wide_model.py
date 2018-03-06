@@ -1,6 +1,8 @@
 from lstm_model import lstm_main
 from utils import load_w2v_model_from_path
+import pickle
 
+SUM_SENTENCES_FILE = './data/train.p'
 
 def main(data_file, w2v_model, testing, expt_name="test"):
     if testing:
@@ -12,15 +14,16 @@ def main(data_file, w2v_model, testing, expt_name="test"):
 
 
 if __name__ == "__main__":
+    import pickle
+
+
     EXPT_NAME = "TEST"
     SAMPLE_DATA_FILE = './data/sample.csv'
     SAMPLE_W2V_MODEL = './models/GoogleNews-vectors-negative300-SLIM.bin'
     model = load_w2v_model_from_path(SAMPLE_W2V_MODEL, binary_input=True)
     print(EXPT_NAME)
-    """
     main(SAMPLE_DATA_FILE, model, testing=True, expt_name=EXPT_NAME)
 
-    """
     print("done with tests, loading true model")
     EXPT_NAME = "REAL"
     DATA_FILE = './data/train.csv'
