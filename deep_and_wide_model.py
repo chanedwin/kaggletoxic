@@ -1,5 +1,5 @@
 from gazette import process_bad_words
-from ldalsi import
+from ldalsi import get_lda_topics
 from lstm_model import lstm_main
 from tf_idf_model import tf_idf_vectorizer_small, tf_idf_vectorizer_big, build_logistic_regression_model
 from utils import COMMENT_TEXT_INDEX
@@ -12,6 +12,8 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     # get gazette matrices
     sentences = train_data_file[COMMENT_TEXT_INDEX]
     sparse_gazette_matrices = process_bad_words(train_data_file)
+    print(sparse_gazette_matrices.shape)
+    print(sparse_gazette_matrices)
 
     # get lstm matrices
     if testing:
@@ -34,7 +36,6 @@ if __name__ == "__main__":
     import pickle
 
     summarized_sentence_data = pickle.load(SUM_SENTENCES_FILE, "rb")
-
     EXPT_NAME = "TEST"
     SAMPLE_DATA_FILE = './data/sample.csv'
     SAMPLE_W2V_MODEL = './models/GoogleNews-vectors-negative300-SLIM.bin'
@@ -45,6 +46,7 @@ if __name__ == "__main__":
          summarized_sentences=summarized_sentence_data, w2v_model=model, testing=True,
          expt_name=EXPT_NAME)
 
+    """
     print("done with tests, loading true model")
     EXPT_NAME = "REAL"
     TRAIN_DATA_FILE = './data/train.csv'
@@ -54,3 +56,4 @@ if __name__ == "__main__":
     main(train_data_file=TRAIN_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
          summarized_sentences=summarized_sentence_data, w2v_model=model, testing=False,
          expt_name=EXPT_NAME)
+    """
