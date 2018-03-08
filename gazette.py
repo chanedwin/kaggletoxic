@@ -19,6 +19,7 @@ def process_bad_words(sentences):
     sparse_gazette_matrixes = filt(bad_words, sentences)
     return sparse_gazette_matrixes
 
+
 def bad_word_processor(data):
     bw_df = pd.read_csv(data, sep='delimiter', header=None)
     bw_lst_no_dup = dataframe_to_list(bw_df.drop_duplicates().values)
@@ -33,15 +34,8 @@ def filt(keep, data):
     df_data = [w.replace("", '') for w in df]
 
     tknzr = TweetTokenizer()
-    # standard for loop style
-    my_list = []
-    for document in df_data:
-        new_sentence = tknzr.tokenize(document)
-        my_list.append(new_sentence)
-
     # list comprehension style
-    tokenized_data = [tknzr.tokenize(sentence) for sentence in data]
-
+    tokenized_data = [tknzr.tokenize(sentence) for sentence in df_data]
     encoder = LabelEncoder()
     transformed_keep = encoder.fit_transform(keep)
     keep_dict = dict(zip(keep, transformed_keep))
@@ -52,8 +46,7 @@ def filt(keep, data):
             if word in keep_dict:
                 sparse_gazette_array[keep_dict[word]] = 1
         sparse_gazette_matrixes.append(sparse_gazette_array)
-    print(len(sparse_gazette_matrixes))
-    return sparse_gazette_matrixes
+    return np.array(sparse_gazette_matrixes)
 
 
 if __name__ == "__main__":
@@ -64,4 +57,3 @@ if __name__ == "__main__":
     bad_words = bad_word_processor(UNPROCESSED_BAD_WORDS_DATA)
     sparse_gazette_matrixes = filt(bad_words, sentences)
     lr = build_logistic_regression_model(sparse_gazette_matrixes, df)
-

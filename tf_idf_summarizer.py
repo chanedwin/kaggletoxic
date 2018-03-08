@@ -35,8 +35,19 @@ def summarize_long_sentences(array_of_strings, max_size=300, max_sentences=10):
     print("done with fitting")
     return_list = []
     # Get the dense tf-idf matrix for the document
-    import multiprocessing
     count = 0
+    split_data_and_shorten_if_needed(count, count_vect, feature_names, max_sentences, return_list, tfidf, training_data)
+    new_list = []
+    for result in return_list:
+        assert type(result[1]) == str
+        new_list.append(result[1])
+    assert len(array_of_strings) == len(new_list)
+    print(new_list)
+    return new_list
+
+
+def split_data_and_shorten_if_needed(count, count_vect, feature_names, max_sentences, return_list, tfidf,
+                                     training_data):
     for index, document in enumerate(training_data):
         if index % 10000 == 0:
             print("progress : {} out of {}".format(index, len(training_data)))
@@ -45,7 +56,7 @@ def summarize_long_sentences(array_of_strings, max_size=300, max_sentences=10):
             count += 1
             tokenized_sentence_by_sentence = nltk.sent_tokenize(document)
             if len(tokenized_sentence_by_sentence) == 1 or len(tokenized_sentence_by_sentence) >= 60:  # treash sentence
-                return_list.append((index, training_data[index].split()[:300]))
+                return_list.append((index, " ".join(training_data[index].split()[:300])))
             else:
                 return_list.append((index, parallel_tf_idf(count_vect, training_data[index], document,
                                                            feature_names,
@@ -53,12 +64,6 @@ def summarize_long_sentences(array_of_strings, max_size=300, max_sentences=10):
         else:
             return_list.append((index, training_data[index]))
     return_list.sort(key=lambda x: x[0])
-    new_list = []
-    for result in return_list:
-        new_list.append(result[1])
-    assert len(array_of_strings) == len(new_list)
-    print(new_list)
-    return new_list
 
 
 def parallel_tf_idf(count_vect, cleaned_document, document, feature_names, max_sentences, tfidf):
@@ -148,7 +153,7 @@ def rank_sentences(doc, doc_matrix, feature_names, top_n=3):
     selected_sents = ranked_sents[:top_n]
     sentence_indexes = [i[0] for i in selected_sents]
     """
-    sentence_indexes = [1,]
+    sentence_indexes = [0, len(sentences) - 1]
     set_sentences = [set(i) for i in sentences]
     index_sentence_set = set()
     for index in sentence_indexes:
@@ -158,7 +163,7 @@ def rank_sentences(doc, doc_matrix, feature_names, top_n=3):
             continue
         sentence = set_sentences[i]
         combined_set = sentence.intersection(index_sentence_set)
-        if len(combined_set) < len(sentence) * 3 // 4:  # at least 1/4 of the words are novel
+        if len(combined_set) < (len(sentence) * 1 // 4):  # at least 1/4 of the words are novel
             sentence_indexes.append(i)
             index_sentence_set.update(sentence)
     return sorted(sentence_indexes)
@@ -172,12 +177,14 @@ if __name__ == "__main__":
     list_of_documents = df[COMMENT_TEXT_INDEX].values
     documents = summarize_long_sentences(list_of_documents)
     size = {}
-    for document in documents:
-        length = len(document)
+    for index, document in enumerate(documents):
+        length = len(document.split())
         if length in size:
             size[length] += 1
         else:
             size[length] = 1
+        if length > 600:
+            list_of_documents[index] = " ".join(document.split()[:300])
     size_list = [i for i in size.items()]
     size_list.sort(key=lambda x: x[0], reverse=True)
     print(size_list)

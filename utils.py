@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from nltk.tokenize import TweetTokenizer
 from gensim.models import KeyedVectors
+from nltk.tokenize import TweetTokenizer
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -32,6 +32,7 @@ def load_data(data_file):
     :rtype: full_truth_labels_data : dictionary of lists of ints,  text_data : list of str
     """
     df = pd.read_csv(data_file)
+
     return df
 
 
@@ -87,9 +88,9 @@ def tokenize_sentences(list_of_sentences):
 
 def transform_text_in_df_return_w2v_np_vectors(list_of_sentences, w2v_model):
     list_of_sentences = tokenize_sentences(list_of_sentences)
-    print(list_of_sentences)
     list_of_sentences = vectorise_tweets(w2v_model, list_of_sentences)
-    list_of_sentences = drop_words_with_no_vectors_at_all_in_w2v(list_of_sentences)  # because some text return nothing, must remove ground truth too
+    list_of_sentences = drop_words_with_no_vectors_at_all_in_w2v(
+        list_of_sentences)  # because some text return nothing, must remove ground truth too
     np_text_array = extract_numpy_vectors_from_w2v_labels(list_of_sentences)
     return np_text_array
 
@@ -124,7 +125,10 @@ def split_train_test(np_text_array, truth_dictionary):
     from sklearn.model_selection import train_test_split
     data_dictionary = {}
     for key in truth_dictionary:
-        X_train, X_test, y_train, y_test = train_test_split(np_text_array, truth_dictionary[key], test_size=0.1,
+        truth_data = truth_dictionary[key][:len(np_text_array)]
+        print(truth_data)
+        X_train, X_test, y_train, y_test = train_test_split(np_text_array, truth_data,
+                                                            test_size=0.1,
                                                             random_state=42)
 
         data_dictionary[key] = {X_TRAIN_DATA_INDEX: X_train, X_TEST_DATA_INDEX: X_test, Y_TRAIN_DATA_INDEX: y_train,
@@ -133,7 +137,7 @@ def split_train_test(np_text_array, truth_dictionary):
 
 
 def drop_words_with_no_vectors_at_all_in_w2v(list_of_sentences):
-    for index,sentence in enumerate(list_of_sentences):
-        if len(sentence) == 0:
-            list_of_sentences[index] = [np.zeros(300),]
+    for index, sentence in enumerate(list_of_sentences):
+        if sentence is None:
+            list_of_sentences[index] = [np.zeros(300), ]
     return list_of_sentences
