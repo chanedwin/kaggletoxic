@@ -8,10 +8,10 @@ from keras.layers import Dense
 from keras.layers import LSTM, Embedding
 from keras.models import Sequential
 from keras.preprocessing import sequence
+from sklearn.metrics import confusion_matrix, classification_report
 
 from utils import TRUTH_LABELS, COMMENT_TEXT_INDEX
 from utils import transform_text_in_df_return_w2v_np_vectors, split_train_test
-from sklearn.metrics import confusion_matrix, classification_report
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -34,7 +34,7 @@ MODEL_SAVE_PATH = 'keras_models/{}/keras_model.h5'
 MAXLEN = 3000
 
 
-def lstm_main(summarized_sentences,predicted_data, truth_dictionary, w2v_model, testing, use_w2v=True):
+def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2v=True):
     if testing:
         print("running tests")
         number_of_epochs = 1
@@ -42,13 +42,10 @@ def lstm_main(summarized_sentences,predicted_data, truth_dictionary, w2v_model, 
         print("running eval")
         number_of_epochs = 1
 
-    prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
-
     # process data
     print("processing data")
     if use_w2v:
         np_text_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
-        np_predict_array = transform_text_in_df_return_w2v_np_vectors(prediction_sentences, w2v_model)
         data_dict = split_train_test(np_text_array, truth_dictionary)
         model_dict = {}
         history_dict = {}
@@ -76,11 +73,9 @@ def lstm_main(summarized_sentences,predicted_data, truth_dictionary, w2v_model, 
 
             print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             print(classification_report(y_test, validation))
-            padded_x_predict_train = sequence.pad_sequences(np_predict_array, maxlen=MAXLEN)
-            results = model.predict(padded_x_predict_train)
             history_dict[key] = history.history
             model_dict[key] = model
-            results_dict[key] = results
+            results_dict[key] = validation
             # try some values
         return model_dict, history_dict, results_dict
     else:
@@ -94,7 +89,6 @@ def lstm_main(summarized_sentences,predicted_data, truth_dictionary, w2v_model, 
                               char_level=False)
         tokenizer.fit_on_texts(summarized_sentences)
         transformed_text = tokenizer.texts_to_sequences(summarized_sentences)
-        predicted_transformed_text = tokenizer.texts_to_sequences(prediction_sentences)
         vocab_size = len(tokenizer.word_counts)
 
         print("vocab length is", len(tokenizer.word_counts))
@@ -125,12 +119,33 @@ def lstm_main(summarized_sentences,predicted_data, truth_dictionary, w2v_model, 
             validation = model.predict_classes(padded_x_test)
             print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             print(classification_report(y_test, validation))
-            padded_predicted_transformed_text = sequence.pad_sequences(predicted_transformed_text, maxlen=MAXLEN)
-            results = model.predict_classes(padded_predicted_transformed_text)
             history_dict[key] = history.history
             model_dict[key] = model
+            results_dict[key] = validation
+        return model_dict, history_dict, results_dict, tokenizer  # THIS IS FAKE
+
+
+def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_model, use_w2v=True):
+    if use_w2v:
+        prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
+        np_text_array = transform_text_in_df_return_w2v_np_vectors(prediction_sentences, w2v_model)
+        padded_x_test = sequence.pad_sequences(np_text_array, maxlen=MAXLEN)
+
+        results_dict = {}
+        for key in truth_dictionary:
+            model = model_dict[key]
+            results = model.predict(padded_x_test)
             results_dict[key] = results
-        return model_dict, history_dict,results_dict  # THIS IS FAKE
+    else:
+        prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
+        tokenized_predictions = tokenizer.texts_to_sequences(prediction_sentences)
+        padded_x_test = sequence.pad_sequences(tokenized_predictions, maxlen=MAXLEN)
+        results_dict = {}
+        for key in truth_dictionary:
+            model = model_dict[key]
+            results = model.predict(padded_x_test)
+            results_dict[key] = results
+    return results_dict
 
 
 def save_model_details_and_training_history(expt_name, history, model):
@@ -141,12 +156,12 @@ def save_model_details_and_training_history(expt_name, history, model):
         pickle.dump(history.history, file_pi)
 
 
-def build_keras_model(testing = False):
+def build_keras_model(testing=False):
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
 
     model.add(LSTM(64, return_sequences=True, input_shape=(3000, 300)))
-    if not testing :
+    if not testing:
         model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
@@ -158,12 +173,12 @@ def build_keras_model(testing = False):
     return model
 
 
-def build_keras_embeddings_model(max_size,testing = False):
+def build_keras_embeddings_model(max_size, testing=False):
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
 
     model.add(Embedding(max_size, 64, input_length=3000))
-    if not testing :
+    if not testing:
         model.add(LSTM(64, return_sequences=True))
         model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
@@ -174,4 +189,3 @@ def build_keras_embeddings_model(max_size,testing = False):
                   optimizer='rmsprop',
                   metrics=['accuracy'])
     return model
-

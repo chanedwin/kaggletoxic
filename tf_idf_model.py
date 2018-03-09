@@ -56,6 +56,7 @@ def build_logistic_regression_model(vector, truth_dictionary):
     for i, col in enumerate(truth_dictionary):
         print(truth_dictionary[col])
         lr = LogisticRegression(random_state=i, class_weight=None, solver='saga',n_jobs=-1, multi_class='multinomial')
+        print(vector)
         lr.fit(vector, truth_dictionary[col])
         pred = lr.predict(vector)
         col = str(col)
