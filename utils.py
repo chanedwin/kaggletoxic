@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from gensim.models.keyedvectors import KeyedVectors
+from gensim.models import KeyedVectors
 from nltk.tokenize import TweetTokenizer
 
 X_TRAIN_DATA_INDEX = 0
@@ -32,6 +32,7 @@ def load_data(data_file):
     :rtype: full_truth_labels_data : dictionary of lists of ints,  text_data : list of str
     """
     df = pd.read_csv(data_file)
+
     return df
 
 
@@ -58,10 +59,9 @@ def concatnator(*dfs, axis):
     return concatnated
 
 
-def vectorise_tweets(model, df):
-    # vectorise sentences
-    df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(
-        lambda x: vectorize_text_if_possible_else_return_None(x, model.wv))
+def vectorise_tweets(model, list_of_sentences):
+    # vectorise sentence
+    return [i for i in map(lambda x: vectorize_text_if_possible_else_return_None(x, model), list_of_sentences)]
 
 
 def vectorize_text_if_possible_else_return_None(tokenized_sentence, model):
@@ -80,20 +80,23 @@ def vectorize_text_if_possible_else_return_None(tokenized_sentence, model):
         return np.array(vector_rep_of_sentence)
 
 
-def tokenize_tweets(df):
+def tokenize_sentences(list_of_sentences):
     tknzr = TweetTokenizer()
     # tokenize sentences
-    df[COMMENT_TEXT_INDEX] = df[COMMENT_TEXT_INDEX].apply(lambda x: tknzr.tokenize(x))
-    
-def transform_text_in_df_return_w2v_np_vectors(df, w2v_model):
-    vectorise_tweets(w2v_model, df)
-    drop_words_with_no_vectors_at_all_in_w2v(df)  # because some text return nothing, must remove ground truth too
-    np_text_array = extract_numpy_vectors_from_w2v_labels(df)
+    return [i for i in map(lambda x: tknzr.tokenize(x), list_of_sentences)]
+
+
+def transform_text_in_df_return_w2v_np_vectors(list_of_sentences, w2v_model):
+    list_of_sentences = tokenize_sentences(list_of_sentences)
+    list_of_sentences = vectorise_tweets(w2v_model, list_of_sentences)
+    list_of_sentences = drop_words_with_no_vectors_at_all_in_w2v(
+        list_of_sentences)  # because some text return nothing, must remove ground truth too
+    np_text_array = extract_numpy_vectors_from_w2v_labels(list_of_sentences)
     return np_text_array
 
 
-def extract_numpy_vectors_from_w2v_labels(df):
-    text = np.array(df[COMMENT_TEXT_INDEX].as_matrix())
+def extract_numpy_vectors_from_w2v_labels(list_of_sentences):
+    text = np.array(list_of_sentences)
     return text
 
 
@@ -122,7 +125,10 @@ def split_train_test(np_text_array, truth_dictionary):
     from sklearn.model_selection import train_test_split
     data_dictionary = {}
     for key in truth_dictionary:
-        X_train, X_test, y_train, y_test = train_test_split(np_text_array, truth_dictionary[key], test_size=0.1,
+        truth_data = truth_dictionary[key][:len(np_text_array)]
+        print(truth_data)
+        X_train, X_test, y_train, y_test = train_test_split(np_text_array, truth_data,
+                                                            test_size=0.1,
                                                             random_state=42)
 
         data_dictionary[key] = {X_TRAIN_DATA_INDEX: X_train, X_TEST_DATA_INDEX: X_test, Y_TRAIN_DATA_INDEX: y_train,
@@ -130,5 +136,8 @@ def split_train_test(np_text_array, truth_dictionary):
     return data_dictionary
 
 
-def drop_words_with_no_vectors_at_all_in_w2v(df):
-    df.drop(df[df.comment_text.isnull()].index, inplace=True)
+def drop_words_with_no_vectors_at_all_in_w2v(list_of_sentences):
+    for index, sentence in enumerate(list_of_sentences):
+        if sentence is None:
+            list_of_sentences[index] = [np.zeros(300), ]
+    return list_of_sentences
