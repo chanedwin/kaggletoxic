@@ -65,12 +65,25 @@ def build_logistic_regression_model(vector, truth_dictionary, choose_to_log_data
         pred = lr.predict(vector)
         col = str(col)
         if choose_to_log_data:
-            save_to_log.info('print truth_dictornary_column\n %s',truth_dictionary[col])
+            save_to_log.info('print truth_dictornary_column\n %s', truth_dictionary[col])
             save_to_log.info('print unfitted vector\n %s', vector)
             save_to_log.info('\nConfusion matrix\n %s', confusion_matrix(truth_dictionary[col], pred))
             save_to_log.info('print classification report\n %s', classification_report(truth_dictionary[col], pred))
         log_dict[lr] = str(col)
         dict_of_pred_probability[str(col)] = dict(lr.predict_log_proba(vector))
+    return dict_of_pred_probability
+
+
+def build_logistic_regression_model(vector, truth_dictionary):
+    dict_of_pred_probability = {}
+    for i, col in enumerate(truth_dictionary):
+        lr = LogisticRegression(random_state=i, class_weight=None, solver='saga', n_jobs=-1, multi_class='ovr')
+        lr.fit(vector, truth_dictionary[col])
+        pred = lr.predict(vector)
+        col = str(col)
+        print('\nConfusion matrix\n', confusion_matrix(truth_dictionary[col], pred))
+        print(classification_report(truth_dictionary[col], pred))
+        dict_of_pred_probability[str(col)] = lr.predict_proba(vector)
     return dict_of_pred_probability
 
 

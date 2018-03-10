@@ -6,6 +6,7 @@ import logging
 import numpy as np
 import pandas as pd
 from keras import Sequential
+from keras.layers import Dense, Dropout
 from keras.models import load_model
 
 from gazette_model import process_bad_words
@@ -67,12 +68,14 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
         else:
             sparse_gazette_matrices = np.load(save_file_directory + SPARSE_ARRAY_NAME)
             assert sparse_gazette_matrices.shape == (len(train_sentences), 3933)
-        save_to_log.info("done getting sparse matrices of shape %s", sparse_gazette_matrices.shape)
+            save_to_log.info("done getting sparse matrices of shape %s", sparse_gazette_matrices.shape)
+            del sparse_gazette_matrices
+
 
     # get w2v lstm matrices
     if train_flag_dict[W2V_FLAG]:
         if train_new:
-            w2v_model_dict, w2v_history_dict, w2v_result_dict = lstm_main(summarized_sentences=summarized_sentences,
+            w2v_model_dict, w2v_result_dict = lstm_main(summarized_sentences=summarized_sentences,
 
                                                                           truth_dictionary=truth_dictionary,
                                                                           w2v_model=w2v_model, testing=testing,
@@ -84,7 +87,7 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             w2v_model_dict = {}
             for key in TRUTH_LABELS:
                 w2v_model_dict[key] = load_model(save_file_directory + key + PRE_TRAINED_RESULT)
-        w2v_results = lstm_predict(model_dict=w2v_model_dict, tokenizer=None, predicted_data=predict_df,
+        w2v_results = lstm_predict(model_dict=w2v_model_dict, tokenizer=None, predicted_data=train_df,
                                    truth_dictionary=truth_dictionary,
                                    w2v_model=w2v_model,
                                    use_w2v=True)
@@ -93,7 +96,7 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     # get novel lstm matrices
     if train_flag_dict[NOVEL_FLAG]:
         if train_new:
-            novel_model_dict, novel_history_dict, w2v_result_dict, tokenizer = lstm_main(
+            novel_model_dict, w2v_result_dict, tokenizer = lstm_main(
                 summarized_sentences=summarized_sentences,
                 truth_dictionary=truth_dictionary,
                 w2v_model=None, testing=testing,
@@ -113,11 +116,12 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             tokenizer.fit_on_texts(summarized_sentences)
             for key in TRUTH_LABELS:
                 novel_model_dict[key] = load_model(save_file_directory + key + NOVEL_TRAINED_RESULT)
-        novel_results = lstm_predict(model_dict=novel_model_dict, predicted_data=predict_df, tokenizer=tokenizer,
+        novel_results = lstm_predict(model_dict=novel_model_dict, predicted_data=train_df, tokenizer=tokenizer,
                                      truth_dictionary=truth_dictionary,
                                      w2v_model=None,
                                      use_w2v=False)
         save_to_log.info(novel_results)
+
 
     # get tf-idf vectorizer
     if train_flag_dict[TF_IDF_FLAG]:
@@ -145,6 +149,9 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             topics = build_LSI_model(train_sentences)
             save_to_log.info("topics are %s", topics)
             np.save(save_file_directory + LSI_MODEL, topics)
+            lsi_topics = build_LSI_model(train_sentences)
+            print("lsi_topics are ", lsi_topics)
+            np.save(save_file_directory + LSI_MODEL, lsi_topics)
         else:
             np.load(save_file_directory + LSI_MODEL)
 
@@ -154,12 +161,48 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             topics = get_lda_topics(train_sentences)
             save_to_log.info("topics are %s", topics)
             np.save(save_file_directory + LDA_MODEL, topics)
+            lda_topics = get_lda_topics(train_sentences)
+            print("lsi_topics are ", lda_topics)
+            np.save(save_file_directory + LDA_MODEL, lda_topics)
         else:
             np.load(save_file_directory + LDA_MODEL)
 
     "sparse = {}, w2v_lstm = {}, novel_lstm = {}, tf-idf = {}, lda = {}, lsi = {}"
     save_to_log.info(sparse_gazette_matrices.shape)
     deep_and_wide_model = Sequential()
+    sparse_gazette_matrices = np.load(save_file_directory + SPARSE_ARRAY_NAME)
+    assert sparse_gazette_matrices.shape == (len(train_sentences), 3933)
+    print(sparse_gazette_matrices.shape)
+    for key in w2v_results:
+        print(w2v_results[key].shape)
+    for key in novel_results:
+        print(novel_results[key].shape)
+    print(vector_small.shape)
+    for key in aggressively_positive_model_report:
+        aggressively_positive_model_report[key] = np.array(
+            [i[1] for i in aggressively_positive_model_report[key]]).reshape((50, 1))
+        print(aggressively_positive_model_report[key].shape)
+    print(lsi_topics.shape)
+    print(lda_topics.shape)
+    for key in TRUTH_LABELS:
+        np_full_array = np.hstack(
+            (sparse_gazette_matrices, lsi_topics, lda_topics, aggressively_positive_model_report[key],
+             novel_results[key], w2v_results[key]))
+        print(np_full_array.shape)
+        model = Sequential()
+        model.add(Dense(5000, input_shape=(np_full_array.shape[1],)))
+        model.add(Dropout(0.2))
+        model.add(Dense(1000))
+        model.add(Dropout(0.2))
+        model.add(Dense(500))
+        model.add(Dropout(0.2))
+        model.add(Dense(300))
+        model.add(Dropout(0.2))
+        model.add(Dense(1, activation='sigmoid'))
+        model.compile(optimizer='rmsprop',
+                      loss='binary_crossentropy',
+                      metrics=['accuracy'])
+        model.fit(np_full_array, truth_dictionary[key])
 
 
 if __name__ == "__main__":
@@ -185,7 +228,7 @@ if __name__ == "__main__":
                           LDA_FLAG: 1,
                           LSI_FLAG: 1,
                           TF_IDF_FLAG: 1,
-                          FAST_TEXT_FLAG: 1}
+                          FAST_TEXT_FLAG: 0}
     # -----------------------------------------------------------------------------------------------------------------
 
     if train_new:
@@ -207,11 +250,12 @@ if __name__ == "__main__":
         """
         save_to_log.info("starting real training")
         real_model = load_w2v_model_from_path(W2V_MODEL)
+        print("starting real training")
+        # real_model = load_w2v_model_from_path(W2V_MODEL)
         main(train_data_file=TRAIN_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
              summarized_sentences=summarized_sentence_data,
-             w2v_model=real_model, testing=False, save_file_directory=REAL_SAVE_FILE_PATH, train_new=True,
+             w2v_model=sample_model, testing=False, save_file_directory=REAL_SAVE_FILE_PATH, train_new=True,
              train_flag_dict=feature_dictionary)
-        """
     else:
         save_to_log.info("preparing to reuse old model using flags %s", feature_dictionary)
         SAVE_FILE_PATH = "./expt/" + EXPT_NAME + ""
@@ -229,7 +273,7 @@ if __name__ == "__main__":
              w2v_model=sample_model, testing=True, save_file_directory=TEST_SAVE_FILE_PATH, train_new=False,
              train_flag_dict=feature_dictionary)
 
-        """
+        ""
         save_to_log.info("starting expt")
         real_model = load_w2v_model_from_path(W2V_MODEL)  # doing this at the end cause very slow
         main(train_data_file=TRAIN_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
