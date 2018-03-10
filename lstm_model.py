@@ -2,8 +2,8 @@ import os
 import pickle
 import time
 
-import numpy as np
 import keras.callbacks
+import numpy as np
 from keras import backend as K
 from keras.layers import Dense
 from keras.layers import LSTM, Embedding
@@ -14,7 +14,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 
 from utils import TRUTH_LABELS, COMMENT_TEXT_INDEX
-from utils import transform_text_in_df_return_w2v_np_vectors, split_train_test
+from utils import transform_text_in_df_return_w2v_np_vectors
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -48,37 +48,32 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
     # process data
     print("processing data")
     if use_w2v:
-        np_text_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
+        np_vector_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
 
         model_dict = {}
-        history_dict = {}
         results_dict = {}
 
         for key in TRUTH_LABELS:
-            x_train, x_test, y_train, y_test = train_test_split(np_text_array, truth_dictionary[key],
+            x_train, x_test, y_train, y_test = train_test_split(np_vector_array, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
-            print(x_train.shape)
             x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
 
             model = build_keras_model(max_len=MAXLEN)
             print("training network")
-            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
 
-            history = model.fit(x_train, y_train,
-                                batch_size=1024, epochs=number_of_epochs,
-                                validation_data=(x_test, y_test),
-                                callbacks=[early_stop_callback, ]
-                                )
+            for e in range(number_of_epochs):
+                print("epoch %d" % e)
+                for X_train, Y_train in batch_generator(x_train, y_train):
+                    model.fit(X_train, Y_train, batch_size=200, nb_epoch=1)
+
             validation = model.predict_classes(x_test)
             print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             print(classification_report(y_test, validation))
-            history_dict[key] = history.history
             model_dict[key] = model
             results_dict[key] = validation
             # try some values
-        return model_dict, history_dict, results_dict
+        return model_dict, results_dict
     else:
 
         from keras.preprocessing.text import Tokenizer
@@ -94,32 +89,29 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
 
         print("vocab length is", len(tokenizer.word_counts))
         model_dict = {}
-        history_dict = {}
         results_dict = {}
         for key in TRUTH_LABELS:
             x_train, x_test, y_train, y_test = train_test_split(transformed_text, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
-            print(x_train.shape)
-            padded_x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
+            x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
+
+
             # build neural network model
             print("training network")
-            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
             model = build_keras_embeddings_model(max_size=vocab_size, max_length=MAXLEN)
 
-            history = model.fit(x_train, y_train,
-                                batch_size=MAX_BATCH_SIZE_PRE_TRAINED, epochs=number_of_epochs,
-                                validation_data=(padded_x_test, y_test),
-                                callbacks=[early_stop_callback, ]
-                                )
-            validation = model.predict_classes(padded_x_test)
+            for e in range(number_of_epochs):
+                print("epoch %d" % e)
+                for X_train, Y_train in batch_generator(x_train, y_train):
+                    model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
+
+            validation = model.predict_classes(x_test)
             print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             print(classification_report(y_test, validation))
-            history_dict[key] = history.history
             model_dict[key] = model
             results_dict[key] = validation
-        return model_dict, history_dict, results_dict, tokenizer  # THIS IS FAKE
+        return model_dict, results_dict, tokenizer  # THIS IS FAKE
 
 
 def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_model, use_w2v=True):
@@ -146,6 +138,16 @@ def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_mo
             intermediate_output = intermediate_layer_model.predict(padded_x_test)
             results_dict[key] = np.array(intermediate_output)
     return results_dict
+
+
+def batch_generator(x_train, y_train):
+    i = 1000
+    while i < len(x_train) + 1000:
+        x = sequence.pad_sequences(x_train[i - 1000:i], maxlen=MAXLEN)
+        y = y_train[i - 1000:i]
+        print(x.shape)
+        yield x, y
+        i += 1000
 
 
 def save_model_details_and_training_history(expt_name, history, model):

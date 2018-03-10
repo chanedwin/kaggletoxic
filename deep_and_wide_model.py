@@ -67,7 +67,7 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     # get w2v lstm matrices
     if train_flag_dict[W2V_FLAG]:
         if train_new:
-            w2v_model_dict, w2v_history_dict, w2v_result_dict = lstm_main(summarized_sentences=summarized_sentences,
+            w2v_model_dict, w2v_result_dict = lstm_main(summarized_sentences=summarized_sentences,
 
                                                                           truth_dictionary=truth_dictionary,
                                                                           w2v_model=w2v_model, testing=testing,
@@ -87,7 +87,7 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     # get novel lstm matrices
     if train_flag_dict[NOVEL_FLAG]:
         if train_new:
-            novel_model_dict, novel_history_dict, w2v_result_dict, tokenizer = lstm_main(
+            novel_model_dict, w2v_result_dict, tokenizer = lstm_main(
                 summarized_sentences=summarized_sentences,
                 truth_dictionary=truth_dictionary,
                 w2v_model=None, testing=testing,
