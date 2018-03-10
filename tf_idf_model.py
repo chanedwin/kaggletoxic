@@ -51,19 +51,15 @@ def tf_idf_vectorizer_small(list_of_strings):
 
 
 def build_logistic_regression_model(vector, truth_dictionary):
-    log_dict = {}
     dict_of_pred_probability = {}
     for i, col in enumerate(truth_dictionary):
-        print(truth_dictionary[col])
-        lr = LogisticRegression(random_state=i, class_weight=None, solver='saga',n_jobs=-1, multi_class='multinomial')
-        print(vector)
+        lr = LogisticRegression(random_state=i, class_weight=None, solver='saga',n_jobs=-1, multi_class='ovr')
         lr.fit(vector, truth_dictionary[col])
         pred = lr.predict(vector)
         col = str(col)
         print('\nConfusion matrix\n', confusion_matrix(truth_dictionary[col], pred))
         print(classification_report(truth_dictionary[col], pred))
-        log_dict[lr] = str(col)
-        dict_of_pred_probability[str(col)] = dict(lr.predict_log_proba(vector))
+        dict_of_pred_probability[str(col)] = lr.predict_proba(vector)
     return dict_of_pred_probability     
 
 

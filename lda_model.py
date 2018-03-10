@@ -13,6 +13,4 @@ def get_lda_topics(sentences):
     model = lda.LDA(n_topics=500, n_iter=10, random_state=1)
     topics = model.fit_transform(tf_idf_sparse_matrix)
 
-    print("topics are", len(topics), len(topics[0]), topics)
-
     return topics

@@ -4,7 +4,6 @@ import time
 
 import numpy as np
 import pandas as pd
-from keras import Sequential
 from keras.models import load_model
 
 from gazette_model import process_bad_words
@@ -81,11 +80,10 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             w2v_model_dict = {}
             for key in TRUTH_LABELS:
                 w2v_model_dict[key] = load_model(save_file_directory + key + PRE_TRAINED_RESULT)
-        w2v_results = lstm_predict(model_dict=w2v_model_dict, tokenizer=None, predicted_data=predict_df,
+        w2v_results = lstm_predict(model_dict=w2v_model_dict, tokenizer=None, predicted_data=train_df,
                                    truth_dictionary=truth_dictionary,
                                    w2v_model=w2v_model,
                                    use_w2v=True)
-        print(w2v_results)
 
     # get novel lstm matrices
     if train_flag_dict[NOVEL_FLAG]:
@@ -110,24 +108,21 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             tokenizer.fit_on_texts(summarized_sentences)
             for key in TRUTH_LABELS:
                 novel_model_dict[key] = load_model(save_file_directory + key + NOVEL_TRAINED_RESULT)
-        novel_results = lstm_predict(model_dict=novel_model_dict, predicted_data=predict_df, tokenizer=tokenizer,
+        novel_results = lstm_predict(model_dict=novel_model_dict, predicted_data=train_df, tokenizer=tokenizer,
                                      truth_dictionary=truth_dictionary,
                                      w2v_model=None,
                                      use_w2v=False)
-        print(novel_results)
 
     # get tf-idf vectorizer
     if train_flag_dict[TF_IDF_FLAG]:
         if train_new:
             vector_small = tf_idf_vectorizer_small(train_sentences)
-            print(vector_small)
             np.save(save_file_directory + TF_IDF_SMALL, vector_small)
         else:
             vector_small = np.load(save_file_directory + TF_IDF_SMALL)
         # get log regression score from tf-idf(2-6 n gram) log reg
         if train_new:
             vector_big = tf_idf_vectorizer_big(train_sentences)
-            print(vector_big)
             aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary)
             np.save(save_file_directory + TF_IDF_BIG, vector_big)
             print(aggressively_positive_model_report)
@@ -139,24 +134,40 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     # get lsi
     if train_flag_dict[LSI_FLAG]:
         if train_new:
-            topics = build_LSI_model(train_sentences)
-            print("topics are ", topics)
-            np.save(save_file_directory + LSI_MODEL, topics)
+            lsi_topics = build_LSI_model(train_sentences)
+            print("lsi_topics are ", lsi_topics)
+            np.save(save_file_directory + LSI_MODEL, lsi_topics)
         else:
             np.load(save_file_directory + LSI_MODEL)
 
     # get lda
     if train_flag_dict[LDA_FLAG]:
         if train_new:
-            topics = get_lda_topics(train_sentences)
-            print("topics are ", topics)
-            np.save(save_file_directory + LDA_MODEL, topics)
+            lda_topics = get_lda_topics(train_sentences)
+            print("lsi_topics are ", lda_topics)
+            np.save(save_file_directory + LDA_MODEL, lda_topics)
         else:
             np.load(save_file_directory + LDA_MODEL)
 
     "sparse = {}, w2v_lstm = {}, novel_lstm = {}, tf-idf = {}, lda = {}, lsi = {}"
     print(sparse_gazette_matrices.shape)
-    deep_and_wide_model = Sequential()
+    for key in w2v_results:
+        print(w2v_results[key].shape)
+    for key in novel_results:
+        print(novel_results[key].shape)
+    print(vector_small.shape)
+    for key in aggressively_positive_model_report:
+        print(aggressively_positive_model_report[key].shape)
+        aggressively_positive_model_report[key] = np.array(
+            [i[1] for i in aggressively_positive_model_report[key]]).reshape((50, 1))
+        print(aggressively_positive_model_report[key].shape)
+    print(lsi_topics.shape)
+    print(lda_topics.shape)
+    for key in TRUTH_LABELS:
+        np_full_array = np.hstack(
+            (sparse_gazette_matrices, lsi_topics, lda_topics, aggressively_positive_model_report[key],
+             novel_results[key], w2v_results[key]))
+        print(np_full_array.shape)
 
 
 if __name__ == "__main__":
@@ -182,7 +193,7 @@ if __name__ == "__main__":
                           LDA_FLAG: 1,
                           LSI_FLAG: 1,
                           TF_IDF_FLAG: 1,
-                          FAST_TEXT_FLAG: 1}
+                          FAST_TEXT_FLAG: 0}
     # -----------------------------------------------------------------------------------------------------------------
 
     if train_new:
@@ -203,10 +214,10 @@ if __name__ == "__main__":
 
         """
         print("starting real training")
-        real_model = load_w2v_model_from_path(W2V_MODEL)
+        # real_model = load_w2v_model_from_path(W2V_MODEL)
         main(train_data_file=TRAIN_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
              summarized_sentences=summarized_sentence_data,
-             w2v_model=real_model, testing=False, save_file_directory=REAL_SAVE_FILE_PATH, train_new=True,
+             w2v_model=sample_model, testing=False, save_file_directory=REAL_SAVE_FILE_PATH, train_new=True,
              train_flag_dict=feature_dictionary)
         """
     else:

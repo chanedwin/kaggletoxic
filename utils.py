@@ -126,7 +126,6 @@ def split_train_test(np_text_array, truth_dictionary):
     data_dictionary = {}
     for key in truth_dictionary:
         truth_data = truth_dictionary[key][:len(np_text_array)]
-        print(truth_data)
         X_train, X_test, y_train, y_test = train_test_split(np_text_array, truth_data,
                                                             test_size=0.1,
                                                             random_state=42)
