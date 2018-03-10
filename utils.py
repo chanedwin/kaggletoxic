@@ -1,7 +1,12 @@
 import numpy as np
 import pandas as pd
+import logging
+from logging.handlers import TimedRotatingFileHandler
+import os
+import __main__
 from gensim.models import KeyedVectors
 from nltk.tokenize import TweetTokenizer
+from datetime import datetime
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -141,3 +146,16 @@ def drop_words_with_no_vectors_at_all_in_w2v(list_of_sentences):
         if sentence is None:
             list_of_sentences[index] = [np.zeros(300), ]
     return list_of_sentences
+
+
+def initalise_logging():
+    current_date_and_time = datetime.now().strftime('%c')
+    save_to_log = logging.getLogger(
+        os.path.splitext(current_date_and_time + " " + os.path.basename(__main__.__file__))[0])  # finds the filename /wo extensions
+    save_to_log.setLevel(logging.INFO)
+    fh = TimedRotatingFileHandler(
+         './data/Log_files/' + current_date_and_time + " " + os.path.splitext(os.path.basename(__main__.__file__))[0] + '.log', when='H')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    save_to_log.addHandler(fh)
+    return save_to_log

@@ -11,7 +11,7 @@ from keras.preprocessing import sequence
 from sklearn.metrics import confusion_matrix, classification_report
 
 from utils import TRUTH_LABELS, COMMENT_TEXT_INDEX
-from utils import transform_text_in_df_return_w2v_np_vectors, split_train_test
+from utils import transform_text_in_df_return_w2v_np_vectors, split_train_test, initalise_logging
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -33,17 +33,19 @@ MODEL_SAVE_PATH = 'keras_models/{}/keras_model.h5'
 
 MAXLEN = 3000
 
+save_to_log = initalise_logging()
+
 
 def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2v=True):
     if testing:
-        print("running tests")
+        save_to_log.info("running tests")
         number_of_epochs = 1
     else:
-        print("running eval")
+        save_to_log.info("running eval")
         number_of_epochs = 1
 
     # process data
-    print("processing data")
+    save_to_log.info("processing data")
     if use_w2v:
         np_text_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
         data_dict = split_train_test(np_text_array, truth_dictionary)
@@ -60,7 +62,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             y_test = data_dict[key][Y_TEST_DATA_INDEX]
 
             model = build_keras_model()
-            print("training network")
+            save_to_log.info("training network")
             early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
 
             history = model.fit(padded_x_train, y_train,
@@ -69,10 +71,10 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
                                 callbacks=[early_stop_callback, ]
                                 )
             validation = model.predict_classes(padded_x_test)
-            print(y_test, validation)
+            save_to_log.info(y_test, validation)
 
-            print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
-            print(classification_report(y_test, validation))
+            save_to_log.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
+            save_to_log.info('print classification report\n %s', classification_report(y_test, validation))
             history_dict[key] = history.history
             model_dict[key] = model
             results_dict[key] = validation
@@ -91,7 +93,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
         transformed_text = tokenizer.texts_to_sequences(summarized_sentences)
         vocab_size = len(tokenizer.word_counts)
 
-        print("vocab length is", len(tokenizer.word_counts))
+        save_to_log.info("vocab length is %s", len(tokenizer.word_counts))
 
         data_dict = split_train_test(transformed_text, truth_dictionary)
         model_dict = {}
@@ -107,7 +109,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             y_test = data_dict[key][Y_TEST_DATA_INDEX]
 
             # build neural network model
-            print("training network")
+            save_to_log.info("training network")
             early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
             model = build_keras_embeddings_model(vocab_size)
 
@@ -117,8 +119,8 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
                                 callbacks=[early_stop_callback, ]
                                 )
             validation = model.predict_classes(padded_x_test)
-            print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
-            print(classification_report(y_test, validation))
+            save_to_log.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
+            save_to_log.info('print classification report\n %s', classification_report(y_test, validation))
             history_dict[key] = history.history
             model_dict[key] = model
             results_dict[key] = validation
@@ -189,3 +191,4 @@ def build_keras_embeddings_model(max_size, testing=False):
                   optimizer='rmsprop',
                   metrics=['accuracy'])
     return model
+

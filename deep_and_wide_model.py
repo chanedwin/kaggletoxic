@@ -1,6 +1,7 @@
 import os
 import pickle
 import time
+import logging
 
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ from lsi_model import build_LSI_model
 from lstm_model import lstm_main, lstm_predict, MAX_NUM_WORDS_ONE_HOT
 from tf_idf_model import tf_idf_vectorizer_small, tf_idf_vectorizer_big, build_logistic_regression_model
 from utils import COMMENT_TEXT_INDEX, TRUTH_LABELS
-from utils import load_w2v_model_from_path, load_data, extract_truth_labels_as_dict
+from utils import load_w2v_model_from_path, load_data, extract_truth_labels_as_dict, initalise_logging
 
 FAST_TEXT_FLAG = "fast_text"
 TF_IDF_FLAG = "tf-idf"
@@ -37,6 +38,8 @@ TF_IDF_SMALL = "tf_idf_small.npy"
 TF_IDF_BIG = "tf_idf_small.npy"
 LSI_MODEL = "lsi.npy"
 LDA_MODEL = "lda.npy"
+
+save_to_log = initalise_logging()  # starts the logs
 
 
 def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, testing, save_file_directory="",
@@ -64,7 +67,7 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
         else:
             sparse_gazette_matrices = np.load(save_file_directory + SPARSE_ARRAY_NAME)
             assert sparse_gazette_matrices.shape == (len(train_sentences), 3933)
-        print("done getting sparse matrices of shape", sparse_gazette_matrices.shape)
+        save_to_log.info("done getting sparse matrices of shape %s", sparse_gazette_matrices.shape)
 
     # get w2v lstm matrices
     if train_flag_dict[W2V_FLAG]:
@@ -85,7 +88,7 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
                                    truth_dictionary=truth_dictionary,
                                    w2v_model=w2v_model,
                                    use_w2v=True)
-        print(w2v_results)
+        save_to_log.info(w2v_results)
 
     # get novel lstm matrices
     if train_flag_dict[NOVEL_FLAG]:
@@ -114,33 +117,33 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
                                      truth_dictionary=truth_dictionary,
                                      w2v_model=None,
                                      use_w2v=False)
-        print(novel_results)
+        save_to_log.info(novel_results)
 
     # get tf-idf vectorizer
     if train_flag_dict[TF_IDF_FLAG]:
         if train_new:
             vector_small = tf_idf_vectorizer_small(train_sentences)
-            print(vector_small)
+            save_to_log.info(vector_small)
             np.save(save_file_directory + TF_IDF_SMALL, vector_small)
         else:
             vector_small = np.load(save_file_directory + TF_IDF_SMALL)
         # get log regression score from tf-idf(2-6 n gram) log reg
         if train_new:
             vector_big = tf_idf_vectorizer_big(train_sentences)
-            print(vector_big)
+            save_to_log.info(vector_big)
             aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary)
             np.save(save_file_directory + TF_IDF_BIG, vector_big)
-            print(aggressively_positive_model_report)
+            save_to_log.info(aggressively_positive_model_report)
         else:
             vector_big = np.load(save_file_directory + TF_IDF_BIG)
             aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary)
-            print(aggressively_positive_model_report)
+            save_to_log.info(aggressively_positive_model_report)
 
     # get lsi
     if train_flag_dict[LSI_FLAG]:
         if train_new:
             topics = build_LSI_model(train_sentences)
-            print("topics are ", topics)
+            save_to_log.info("topics are %s", topics)
             np.save(save_file_directory + LSI_MODEL, topics)
         else:
             np.load(save_file_directory + LSI_MODEL)
@@ -149,13 +152,13 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     if train_flag_dict[LDA_FLAG]:
         if train_new:
             topics = get_lda_topics(train_sentences)
-            print("topics are ", topics)
+            save_to_log.info("topics are %s", topics)
             np.save(save_file_directory + LDA_MODEL, topics)
         else:
             np.load(save_file_directory + LDA_MODEL)
 
     "sparse = {}, w2v_lstm = {}, novel_lstm = {}, tf-idf = {}, lda = {}, lsi = {}"
-    print(sparse_gazette_matrices.shape)
+    save_to_log.info(sparse_gazette_matrices.shape)
     deep_and_wide_model = Sequential()
 
 
@@ -193,16 +196,16 @@ if __name__ == "__main__":
         os.makedirs(TEST_SAVE_FILE_PATH)
         os.makedirs(REAL_SAVE_FILE_PATH)
 
-        print("preparing to train new model")
+        save_to_log.info("preparing to train new model")
 
-        print("doing tests")
+        save_to_log.info("doing tests")
         main(train_data_file=SAMPLE_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
              summarized_sentences=summarized_sentence_data,
              w2v_model=sample_model, testing=True, save_file_directory=TEST_SAVE_FILE_PATH, train_new=True,
              train_flag_dict=feature_dictionary)
 
         """
-        print("starting real training")
+        save_to_log.info("starting real training")
         real_model = load_w2v_model_from_path(W2V_MODEL)
         main(train_data_file=TRAIN_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
              summarized_sentences=summarized_sentence_data,
@@ -210,7 +213,7 @@ if __name__ == "__main__":
              train_flag_dict=feature_dictionary)
         """
     else:
-        print("preparing to reuse old model using flags", feature_dictionary)
+        save_to_log.info("preparing to reuse old model using flags %s", feature_dictionary)
         SAVE_FILE_PATH = "./expt/" + EXPT_NAME + ""
         TEST_SAVE_FILE_PATH = SAVE_FILE_PATH + "_TEST/"
         REAL_SAVE_FILE_PATH = SAVE_FILE_PATH + "_REAL/"
@@ -220,14 +223,14 @@ if __name__ == "__main__":
         except:
             raise Exception("Experiment path doesn't exist")
 
-        print("doing tests")
+        save_to_log.info("doing tests")
         main(train_data_file=SAMPLE_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
              summarized_sentences=summarized_sentence_data,
              w2v_model=sample_model, testing=True, save_file_directory=TEST_SAVE_FILE_PATH, train_new=False,
              train_flag_dict=feature_dictionary)
 
         """
-        print("starting expt")
+        save_to_log.info("starting expt")
         real_model = load_w2v_model_from_path(W2V_MODEL)  # doing this at the end cause very slow
         main(train_data_file=TRAIN_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
              summarized_sentences=summarized_sentence_data,
