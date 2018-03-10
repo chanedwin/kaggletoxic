@@ -58,20 +58,20 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             x_train, x_test, y_train, y_test = train_test_split(np_text_array, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            padded_x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
-            print(padded_x_train.shape)
-            padded_x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
+            x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
+            print(x_train.shape)
+            x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
 
             model = build_keras_model(max_len=MAXLEN)
             print("training network")
             early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
 
-            history = model.fit(padded_x_train, y_train,
+            history = model.fit(x_train, y_train,
                                 batch_size=1024, epochs=number_of_epochs,
-                                validation_data=(padded_x_test, y_test),
+                                validation_data=(x_test, y_test),
                                 callbacks=[early_stop_callback, ]
                                 )
-            validation = model.predict_classes(padded_x_test)
+            validation = model.predict_classes(x_test)
             print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             print(classification_report(y_test, validation))
             history_dict[key] = history.history
@@ -100,15 +100,15 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             x_train, x_test, y_train, y_test = train_test_split(transformed_text, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            padded_x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
-            print(padded_x_train.shape)
+            x_train = sequence.pad_sequences(x_train, maxlen=MAXLEN)
+            print(x_train.shape)
             padded_x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
             # build neural network model
             print("training network")
             early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
             model = build_keras_embeddings_model(max_size=vocab_size, max_length=MAXLEN)
 
-            history = model.fit(padded_x_train, y_train,
+            history = model.fit(x_train, y_train,
                                 batch_size=MAX_BATCH_SIZE_PRE_TRAINED, epochs=number_of_epochs,
                                 validation_data=(padded_x_test, y_test),
                                 callbacks=[early_stop_callback, ]
