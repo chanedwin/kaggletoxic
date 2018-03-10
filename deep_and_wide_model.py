@@ -200,15 +200,17 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
 
     "sparse = {}, w2v_lstm = {}, novel_lstm = {}, tf-idf = {}, lda = {}, lsi = {}"
     logger.info(sparse_gazette_matrices.shape)
-    deep_and_wide_model = Sequential()
     sparse_gazette_matrices = np.load(save_file_directory + SPARSE_ARRAY_NAME)
     assert sparse_gazette_matrices.shape == (len(train_sentences), 3933)
     for key in aggressively_positive_model_report:
         aggressively_positive_model_report[key] = np.array(
             [i[1] for i in aggressively_positive_model_report[key]]).reshape((50, 1))
     for key in truth_dictionary:
+        print(novel_results[key].shape)
+        print(w2v_results[key].shape)
         np_full_array = np.hstack(
-            (sparse_gazette_matrices, lsi_topics, lda_topics, aggressively_positive_model_report[key]))
+            (sparse_gazette_matrices, w2v_results[key], novel_results[key], lsi_topics, lda_topics,
+             aggressively_positive_model_report[key]))
         print(np_full_array.shape)
         deep_and_wide_network(np_full_array=np_full_array,
                               testing=testing,
