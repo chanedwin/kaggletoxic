@@ -296,8 +296,10 @@ if __name__ == "__main__":
              summarized_sentences=summarized_sentence_data,
              w2v_model=sample_model, testing=False, save_file_directory=REAL_SAVE_FILE_PATH, train_new=True,
              train_flag_dict=feature_dictionary, logger=real_logger)
-        """"""
+        """
     else:
+        test_logger = initalise_logging(TEST_SAVE_FILE_PATH)
+        real_logger = initalise_logging(REAL_SAVE_FILE_PATH)
         logger.info("preparing to reuse old model using flags %s", feature_dictionary)
         SAVE_FILE_PATH = "./expt/" + EXPT_NAME + ""
         TEST_SAVE_FILE_PATH = SAVE_FILE_PATH + "_TEST/"

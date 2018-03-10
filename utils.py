@@ -2,7 +2,6 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 
-import __main__
 import numpy as np
 import pandas as pd
 from gensim.models import KeyedVectors
