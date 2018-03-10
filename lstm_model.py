@@ -16,6 +16,8 @@ from sklearn.model_selection import train_test_split
 from utils import TRUTH_LABELS, COMMENT_TEXT_INDEX
 from utils import transform_text_in_df_return_w2v_np_vectors
 
+BATCH_SIZE = 400
+
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
 Y_TRAIN_DATA_INDEX = 2
@@ -34,7 +36,7 @@ KERAS_MODEL_DIRECTORY = 'keras_models/{}'
 TRAIN_HISTORY_DICT_PATH = 'keras_models/{}/trainHistoryDict'
 MODEL_SAVE_PATH = 'keras_models/{}/keras_model.h5'
 
-MAXLEN = 100
+MAX_W2V_LENGTH = 300
 
 
 def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2v=True):
@@ -57,15 +59,15 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             x_train, x_test, y_train, y_test = train_test_split(np_vector_array, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
+            x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
 
-            model = build_keras_model(max_len=MAXLEN)
+            model = build_keras_model(max_len=MAX_W2V_LENGTH)
             print("training network")
 
             for e in range(number_of_epochs):
                 print("epoch %d" % e)
                 for X_train, Y_train in batch_generator(x_train, y_train):
-                    model.fit(X_train, Y_train, batch_size=200, nb_epoch=1)
+                    model.fit(X_train, Y_train, batch_size=BATCH_SIZE, nb_epoch=1)
 
             validation = model.predict_classes(x_test)
             print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
@@ -94,12 +96,12 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             x_train, x_test, y_train, y_test = train_test_split(transformed_text, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            x_test = sequence.pad_sequences(x_test, maxlen=MAXLEN)
+            x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
 
 
             # build neural network model
             print("training network")
-            model = build_keras_embeddings_model(max_size=vocab_size, max_length=MAXLEN)
+            model = build_keras_embeddings_model(max_size=vocab_size, max_length=MAX_W2V_LENGTH)
 
             for e in range(number_of_epochs):
                 print("epoch %d" % e)
@@ -118,7 +120,7 @@ def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_mo
     if use_w2v:
         prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
         np_text_array = transform_text_in_df_return_w2v_np_vectors(prediction_sentences, w2v_model)
-        padded_x_test = sequence.pad_sequences(np_text_array, maxlen=MAXLEN)
+        padded_x_test = sequence.pad_sequences(np_text_array, maxlen=MAX_W2V_LENGTH)
         results_dict = {}
         for key in truth_dictionary:
             model = model_dict[key]
@@ -129,7 +131,7 @@ def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_mo
     else:
         prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
         tokenized_predictions = tokenizer.texts_to_sequences(prediction_sentences)
-        padded_x_test = sequence.pad_sequences(tokenized_predictions, maxlen=MAXLEN)
+        padded_x_test = sequence.pad_sequences(tokenized_predictions, maxlen=MAX_W2V_LENGTH)
         results_dict = {}
         for key in truth_dictionary:
             model = model_dict[key]
@@ -141,13 +143,13 @@ def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_mo
 
 
 def batch_generator(x_train, y_train):
-    i = 1000
-    while i < len(x_train) + 1000:
-        x = sequence.pad_sequences(x_train[i - 1000:i], maxlen=MAXLEN)
-        y = y_train[i - 1000:i]
+    i = BATCH_SIZE
+    while i < len(x_train) + BATCH_SIZE:
+        x = sequence.pad_sequences(x_train[i - BATCH_SIZE:i], maxlen=MAX_W2V_LENGTH)
+        y = y_train[i - BATCH_SIZE:i]
         print(x.shape)
         yield x, y
-        i += 1000
+        i += BATCH_SIZE
 
 
 def save_model_details_and_training_history(expt_name, history, model):
