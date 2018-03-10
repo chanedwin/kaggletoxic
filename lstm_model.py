@@ -13,12 +13,11 @@ from keras.preprocessing import sequence
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 
-from utils import TRUTH_LABELS, COMMENT_TEXT_INDEX
-from utils import transform_text_in_df_return_w2v_np_vectors, split_train_test, initalise_logging
+from utils import COMMENT_TEXT_INDEX
+from utils import split_train_test
 from utils import transform_text_in_df_return_w2v_np_vectors
 
 BATCH_SIZE = 400
-
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -40,57 +39,41 @@ MODEL_SAVE_PATH = 'keras_models/{}/keras_model.h5'
 
 MAX_W2V_LENGTH = 300
 
-save_to_log = initalise_logging()
 
-
-def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2v=True):
+def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2v=True, logger=None):
     if testing:
-        save_to_log.info("running tests")
+        logger.info("running tests")
         number_of_epochs = 1
     else:
-        save_to_log.info("running eval")
+        logger.info("running eval")
         number_of_epochs = 1
 
     # process data
-    save_to_log.info("processing data")
+    logger.info("processing data")
     if use_w2v:
         np_vector_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
 
         model_dict = {}
         results_dict = {}
 
-        for key in TRUTH_LABELS:
+        for key in truth_dictionary:
             x_train, x_test, y_train, y_test = train_test_split(np_vector_array, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
+            padded_x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
 
-            model = build_keras_model()
-            save_to_log.info("training network")
-            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
-
-            history = model.fit(padded_x_train, y_train,
-                                batch_size=1024, epochs=number_of_epochs,
-                                validation_data=(padded_x_test, y_test),
-                                callbacks=[early_stop_callback, ]
-                                )
-            validation = model.predict_classes(padded_x_test)
-            save_to_log.info(y_test, validation)
-
-            save_to_log.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
-            save_to_log.info('print classification report\n %s', classification_report(y_test, validation))
-            history_dict[key] = history.history
             model = build_keras_model(max_len=MAX_W2V_LENGTH)
-            print("training network")
+            logger.info("training network")
 
             for e in range(number_of_epochs):
                 print("epoch %d" % e)
                 for X_train, Y_train in batch_generator(x_train, y_train):
                     model.fit(X_train, Y_train, batch_size=BATCH_SIZE, nb_epoch=1)
 
-            validation = model.predict_classes(x_test)
-            print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
-            print(classification_report(y_test, validation))
+            validation = model.predict_classes(padded_x_test)
+            logger.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
+            logger.info('print classification report\n %s', classification_report(y_test, validation))
+
             model_dict[key] = model
             results_dict[key] = validation
             # try some values
@@ -107,33 +90,18 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
         tokenizer.fit_on_texts(summarized_sentences)
         transformed_text = tokenizer.texts_to_sequences(summarized_sentences)
         vocab_size = len(tokenizer.word_counts)
-        save_to_log.info("vocab length is %s", len(tokenizer.word_counts))
+        logger.info("vocab length is %s", len(tokenizer.word_counts))
 
         data_dict = split_train_test(transformed_text, truth_dictionary)
-        save_to_log.info("vocab length is %s", len(tokenizer.word_counts))
+        logger.info("vocab length is %s", len(tokenizer.word_counts))
         model_dict = {}
         results_dict = {}
-        for key in TRUTH_LABELS:
+        for key in truth_dictionary:
             x_train, x_test, y_train, y_test = train_test_split(transformed_text, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
+            padded_x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
 
-
-            # build neural network model
-            save_to_log.info("training network")
-            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
-            model = build_keras_embeddings_model(vocab_size)
-
-            history = model.fit(padded_x_train, y_train,
-                                batch_size=MAX_BATCH_SIZE_PRE_TRAINED, epochs=number_of_epochs,
-                                validation_data=(padded_x_test, y_test),
-                                callbacks=[early_stop_callback, ]
-                                )
-            validation = model.predict_classes(padded_x_test)
-            save_to_log.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
-            save_to_log.info('print classification report\n %s', classification_report(y_test, validation))
-            history_dict[key] = history.history
             print("training network")
             model = build_keras_embeddings_model(max_size=vocab_size, max_length=MAX_W2V_LENGTH)
 
@@ -142,7 +110,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
                 for X_train, Y_train in batch_generator(x_train, y_train):
                     model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
 
-            validation = model.predict_classes(x_test)
+            validation = model.predict_classes(padded_x_test)
             print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             print(classification_report(y_test, validation))
             model_dict[key] = model
@@ -150,7 +118,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
         return model_dict, results_dict, tokenizer  # THIS IS FAKE
 
 
-def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_model, use_w2v=True):
+def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_model, use_w2v=True, logger=None):
     if use_w2v:
         prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
         np_text_array = transform_text_in_df_return_w2v_np_vectors(prediction_sentences, w2v_model)
@@ -227,4 +195,3 @@ def build_keras_embeddings_model(max_size, max_length, testing=False):
                   optimizer='rmsprop',
                   metrics=['accuracy'])
     return model
-
