@@ -1,6 +1,4 @@
 import logging
-import os
-from logging.handlers import TimedRotatingFileHandler
 
 import numpy as np
 import pandas as pd
@@ -81,7 +79,8 @@ def vectorize_text_if_possible_else_return_None(tokenized_sentence, model):
 
     # else turn it into a numpy array
     else:
-        return np.array(vector_rep_of_sentence)
+        my_array = np.array(vector_rep_of_sentence, dtype='float16')
+        return my_array
 
 
 def tokenize_sentences(list_of_sentences):
@@ -95,19 +94,14 @@ def transform_text_in_df_return_w2v_np_vectors(list_of_sentences, w2v_model):
     list_of_sentences = vectorise_tweets(w2v_model, list_of_sentences)
     list_of_sentences = drop_words_with_no_vectors_at_all_in_w2v(
         list_of_sentences)  # because some text return nothing, must remove ground truth too
-    np_text_array = extract_numpy_vectors_from_w2v_labels(list_of_sentences)
+    np_text_array = np.array(list_of_sentences)
     return np_text_array
-
-
-def extract_numpy_vectors_from_w2v_labels(list_of_sentences):
-    text = np.array(list_of_sentences)
-    return text
 
 
 def extract_truth_labels_as_dict(df):
     dictionary_of_truth_labels = {}
     for key in TRUTH_LABELS:
-        value = np.array(df[key].as_matrix())
+        value = np.array(df[key].as_matrix(),dtype='int8')
         dictionary_of_truth_labels[key] = value
     return dictionary_of_truth_labels
 

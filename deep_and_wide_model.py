@@ -15,7 +15,6 @@ from lsi_model import build_LSI_model
 from lstm_model import lstm_main, lstm_predict
 from tf_idf_model import tf_idf_vectorizer_small, tf_idf_vectorizer_big, build_logistic_regression_model
 from utils import COMMENT_TEXT_INDEX, TRUTH_LABELS
-from utils import transform_text_in_df_return_w2v_np_vectors
 
 IGNORE_FLAG = 0
 TRAIN_NEW_FLAG = 1
@@ -71,27 +70,14 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     # get truth dictionary
     truth_dictionary = extract_truth_labels_as_dict(train_df)
     train_sentences = train_df[COMMENT_TEXT_INDEX]
+    summarized_sentences = summarized_sentences[:len(train_df)]
 
     if testing:
-        summarized_sentences = summarized_sentences[:len(train_df)]
         truth_dictionary.popitem()
         truth_dictionary.popitem()
         truth_dictionary.popitem()
         truth_dictionary.popitem()
         truth_dictionary.popitem()
-
-    # convert w2v to array
-    np_vector_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
-    from keras.preprocessing.text import Tokenizer
-
-    tokenizer = Tokenizer(num_words=MAX_NUM_WORDS_ONE_HOT,
-                          filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
-                          lower=True,
-                          split=" ",
-                          char_level=False)
-    tokenizer.fit_on_texts(summarized_sentences)
-    transformed_text = np.array(tokenizer.texts_to_sequences(summarized_sentences))
-    vocab_size = len(tokenizer.word_counts)
 
     # get gazette matrices
     if train_flag_dict[GAZETTE_FLAG]:
@@ -291,7 +277,7 @@ if __name__ == "__main__":
              train_flag_dict=feature_dictionary, logger=test_logger)
 
         real_logger.info("starting real training")
-        real_model = load_w2v_model_from_path(W2V_MODEL)
+        # real_model = load_w2v_model_from_path(W2V_MODEL)
         print("starting real training")
         # real_model = load_w2v_model_from_path(W2V_MODEL)
         main(train_data_file=TRAIN_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,

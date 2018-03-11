@@ -2,9 +2,7 @@ import os
 import pickle
 import time
 
-import keras.callbacks
 import numpy as np
-from keras import backend as K
 from keras.layers import Dense
 from keras.layers import LSTM, Embedding
 from keras.models import Model
@@ -17,19 +15,15 @@ from utils import COMMENT_TEXT_INDEX
 from utils import split_train_test
 from utils import transform_text_in_df_return_w2v_np_vectors
 
-BATCH_SIZE = 400
+BATCH_SIZE = 5
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
 Y_TRAIN_DATA_INDEX = 2
 Y_TEST_DATA_INDEX = 3
 
-MAX_BATCH_SIZE_PRE_TRAINED = 400
-cfg = K.tf.ConfigProto()
-cfg.gpu_options.allow_growth = True
-K.set_session(K.tf.Session(config=cfg))
-
-MAX_NUM_WORDS_ONE_HOT = 50000
+MAX_VOCAB_SIZE = 50000
+MAX_NUM_WORDS_ONE_HOT = 300
 
 FILE_NAME_STRING_DELIMITER = "_"
 FILE_NAME_STRING_FORMATING = "%d_%m_%y_%H:%M"
@@ -52,7 +46,6 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
     logger.info("processing data")
     if use_w2v:
         np_vector_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
-
         model_dict = {}
         results_dict = {}
 
@@ -67,7 +60,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
 
             for e in range(number_of_epochs):
                 print("epoch %d" % e)
-                for X_train, Y_train in batch_generator(x_train, y_train):
+                for X_train, Y_train in w2v_batch_generator(x_train, y_train):
                     model.fit(X_train, Y_train, batch_size=BATCH_SIZE, nb_epoch=1)
 
             validation = model.predict_classes(padded_x_test)
@@ -79,16 +72,19 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             # try some values
         return model_dict, results_dict
     else:
-
         from keras.preprocessing.text import Tokenizer
 
-        tokenizer = Tokenizer(num_words=MAX_NUM_WORDS_ONE_HOT,
+        tokenizer = Tokenizer(num_words=MAX_VOCAB_SIZE,
                               filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
                               lower=True,
                               split=" ",
                               char_level=False)
         tokenizer.fit_on_texts(summarized_sentences)
         transformed_text = tokenizer.texts_to_sequences(summarized_sentences)
+        for index, text in enumerate(transformed_text):
+            transformed_text[index] = np.array(text, dtype='int8')
+        transformed_text = np.array(transformed_text)
+        print("shape of text is", transformed_text.shape)
         vocab_size = len(tokenizer.word_counts)
         logger.info("vocab length is %s", len(tokenizer.word_counts))
 
@@ -103,12 +99,12 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             padded_x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
 
             print("training network")
-            model = build_keras_embeddings_model(max_size=vocab_size, max_length=MAX_W2V_LENGTH)
-
+            model = build_keras_embeddings_model(max_vocab_size=vocab_size, max_length=MAX_NUM_WORDS_ONE_HOT)
+            print("vocab size is", vocab_size)
             for e in range(number_of_epochs):
                 print("epoch %d" % e)
-                for X_train, Y_train in batch_generator(x_train, y_train):
-                    model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
+                for X_train, Y_train in novel_batch_generator(x_train, y_train):
+                    model.fit(X_train, Y_train, batch_size=BATCH_SIZE, nb_epoch=1)
 
             validation = model.predict_classes(padded_x_test)
             print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
@@ -133,7 +129,7 @@ def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_mo
     else:
         prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
         tokenized_predictions = tokenizer.texts_to_sequences(prediction_sentences)
-        padded_x_test = sequence.pad_sequences(tokenized_predictions, maxlen=MAX_W2V_LENGTH)
+        padded_x_test = sequence.pad_sequences(tokenized_predictions, maxlen=MAX_NUM_WORDS_ONE_HOT)
         results_dict = {}
         for key in truth_dictionary:
             model = model_dict[key]
@@ -144,10 +140,25 @@ def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_mo
     return results_dict
 
 
-def batch_generator(x_train, y_train):
+def w2v_batch_generator(x_train, y_train):
     i = BATCH_SIZE
     while i < len(x_train) + BATCH_SIZE:
-        x = sequence.pad_sequences(x_train[i - BATCH_SIZE:i], maxlen=MAX_W2V_LENGTH)
+        for sample in x_train:
+            print(sample.shape)
+        x = sequence.pad_sequences(x_train[i - BATCH_SIZE:i], maxlen=MAX_W2V_LENGTH, dtype='float16')
+        for sample in x:
+            print(sample[-1], sample[-1][0])
+        y = y_train[i - BATCH_SIZE:i]
+        yield x, y
+        i += BATCH_SIZE
+
+
+def novel_batch_generator(x_train, y_train):
+    i = BATCH_SIZE
+    while i < len(x_train) + BATCH_SIZE:
+        for sample in x_train:
+            print(sample.shape)
+        x = sequence.pad_sequences(x_train[i - BATCH_SIZE:i], maxlen=MAX_NUM_WORDS_ONE_HOT)
         y = y_train[i - BATCH_SIZE:i]
         print(x.shape)
         yield x, y
@@ -179,11 +190,11 @@ def build_keras_model(max_len, testing=False):
     return model
 
 
-def build_keras_embeddings_model(max_size, max_length, testing=False):
+def build_keras_embeddings_model(max_vocab_size, max_length, testing=False):
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
 
-    model.add(Embedding(max_size, 64, input_length=max_length))
+    model.add(Embedding(max_vocab_size, 64, input_length=max_length))
     if not testing:
         model.add(LSTM(64, return_sequences=True))
         model.add(LSTM(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
