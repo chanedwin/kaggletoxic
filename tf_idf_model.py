@@ -81,8 +81,8 @@ def build_logistic_regression_model(vector, truth_dictionary):
         lr.fit(vector, truth_dictionary[col])
         pred = lr.predict(vector)
         col = str(col)
-        print('\nConfusion matrix\n', confusion_matrix(truth_dictionary[col], pred))
-        print(classification_report(truth_dictionary[col], pred))
+        save_to_log.info('\nConfusion matrix\n %s', confusion_matrix(truth_dictionary[col], pred))
+        save_to_log.info(classification_report(truth_dictionary[col], pred))
         dict_of_pred_probability[str(col)] = lr.predict_proba(vector)
     return dict_of_pred_probability
 
