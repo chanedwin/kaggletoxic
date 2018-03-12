@@ -66,12 +66,11 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     train_sentences = train_df[COMMENT_TEXT_INDEX]
     summarized_sentences = summarized_sentences[:len(train_df)]
 
-    if testing:
-        truth_dictionary.popitem()
-        truth_dictionary.popitem()
-        truth_dictionary.popitem()
-        truth_dictionary.popitem()
-        truth_dictionary.popitem()
+    truth_dictionary.popitem()
+    truth_dictionary.popitem()
+    truth_dictionary.popitem()
+    truth_dictionary.popitem()
+    truth_dictionary.popitem()
 
     # get gazette matrices
     if train_flag_dict[GAZETTE_FLAG]:
@@ -186,6 +185,9 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
         aggressively_positive_model_report[key] = np.array(
             [i[1] for i in aggressively_positive_model_report[key]]).reshape((50, 1))
     for key in truth_dictionary:
+        for array in (sparse_gazette_matrices, w2v_results[key], novel_results[key], lsi_topics, lda_topics,
+             aggressively_positive_model_report[key]):
+             print( array.shape)
         np_full_array = np.hstack(
             (sparse_gazette_matrices, w2v_results[key], novel_results[key], lsi_topics, lda_topics,
              aggressively_positive_model_report[key]))
@@ -224,9 +226,9 @@ def deep_and_wide_network(np_full_array, testing, truth_dictionary, key):
 
 
 if __name__ == "__main__":
-    SUM_SENTENCES_FILE = './data/newtrain.p'
+    SUM_SENTENCES_FILE = './data/balanced_train.p'
     summarized_sentence_data = pickle.load(open(SUM_SENTENCES_FILE, "rb"))
-
+    print(summarized_sentence_data[0])
     SAMPLE_DATA_FILE = './data/sample.csv'
     TRAIN_DATA_FILE = './data/small_train.csv'
     PREDICT_DATA_FILE = './data/test_predict.csv'
