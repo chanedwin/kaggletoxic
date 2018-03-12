@@ -1,11 +1,8 @@
 import numpy as np
 import pandas as pd
 import logging
-import os
-import __main__
 from gensim.models import KeyedVectors
 from nltk.tokenize import TweetTokenizer
-from datetime import datetime
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -23,10 +20,11 @@ TRUTH_LABELS = [TOXIC_TEXT_INDEX, SEVERE_TOXIC_TEXT_INDEX, OBSCENE_TEXT_INDEX, T
                 IDENTITY_HATE_TEXT_INDEX]
 
 DATA_FILE = './data/train.csv'
+BALANCED_DATA_FILE = './data/balanced_train_file.csv'
 W2V_MODEL = './models/w2v.840B.300d.txt'
 
 
-def load_data(data_file):
+def load_data(data_file, type='pd'):
     """
 
     :param data_file: path to train data file
@@ -35,9 +33,19 @@ def load_data(data_file):
      dictionary of truth labels with key as dataset name and value as a list containing labels for each row in text_data
     :rtype: full_truth_labels_data : dictionary of lists of ints,  text_data : list of str
     """
-    df = pd.read_csv(data_file)
+    if type == 'pd':
+        df = pd.read_csv(data_file)
 
-    return df
+        return df
+    else:
+        import csv
+        with open(data_file) as f:
+            reader = csv.reader(f)
+            header = next(reader)
+            return_list = []
+            for row in reader:
+                return_list.append(row)
+        return header, return_list
 
 
 def dataframe_to_list(df):
@@ -81,7 +89,8 @@ def vectorize_text_if_possible_else_return_None(tokenized_sentence, model):
 
     # else turn it into a numpy array
     else:
-        return np.array(vector_rep_of_sentence)
+        my_array = np.array(vector_rep_of_sentence, dtype='float16')
+        return my_array
 
 
 def tokenize_sentences(list_of_sentences):
@@ -95,19 +104,14 @@ def transform_text_in_df_return_w2v_np_vectors(list_of_sentences, w2v_model):
     list_of_sentences = vectorise_tweets(w2v_model, list_of_sentences)
     list_of_sentences = drop_words_with_no_vectors_at_all_in_w2v(
         list_of_sentences)  # because some text return nothing, must remove ground truth too
-    np_text_array = extract_numpy_vectors_from_w2v_labels(list_of_sentences)
+    np_text_array = np.array(list_of_sentences)
     return np_text_array
-
-
-def extract_numpy_vectors_from_w2v_labels(list_of_sentences):
-    text = np.array(list_of_sentences)
-    return text
 
 
 def extract_truth_labels_as_dict(df):
     dictionary_of_truth_labels = {}
     for key in TRUTH_LABELS:
-        value = np.array(df[key].as_matrix())
+        value = np.array(df[key].as_matrix(), dtype='int8')
         dictionary_of_truth_labels[key] = value
     return dictionary_of_truth_labels
 
@@ -146,16 +150,12 @@ def drop_words_with_no_vectors_at_all_in_w2v(list_of_sentences):
     return list_of_sentences
 
 
-def initalise_logging():
-    current_date_and_time = datetime.now().strftime('%c')
-    save_to_log = logging.getLogger(
-        current_date_and_time + " " + os.path.splitext(os.path.basename(__main__.__file__))[
-            0])  # finds the filename /wo extensions
-    save_to_log.setLevel(logging.INFO)
+def initalise_logging(base_location):
+    logger = logging.getLogger("main")  # finds the filename /wo extensions
+    logger.setLevel(logging.INFO)
     fh = logging.FileHandler(
-        './data/Log_files/' + current_date_and_time + " " + os.path.splitext(os.path.basename(__main__.__file__))[
-            0] + '.log')
+        base_location + "main.log")
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
-    save_to_log.addHandler(fh)
-    return save_to_log
+    logger.addHandler(fh)
+    return logger
