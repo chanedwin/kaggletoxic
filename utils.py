@@ -21,10 +21,11 @@ TRUTH_LABELS = [TOXIC_TEXT_INDEX, SEVERE_TOXIC_TEXT_INDEX, OBSCENE_TEXT_INDEX, T
                 IDENTITY_HATE_TEXT_INDEX]
 
 DATA_FILE = './data/train.csv'
+BALANCED_DATA_FILE = './data/balanced_train_file.csv'
 W2V_MODEL = './models/w2v.840B.300d.txt'
 
 
-def load_data(data_file):
+def load_data(data_file,type='pd'):
     """
 
     :param data_file: path to train data file
@@ -33,10 +34,19 @@ def load_data(data_file):
      dictionary of truth labels with key as dataset name and value as a list containing labels for each row in text_data
     :rtype: full_truth_labels_data : dictionary of lists of ints,  text_data : list of str
     """
-    df = pd.read_csv(data_file)
+    if type == 'pd':
+        df = pd.read_csv(data_file)
 
-    return df
-
+        return df
+    else :
+        import csv
+        with open(data_file) as f :
+            reader = csv.reader(f)
+            header = next(reader)
+            return_list = []
+            for row in reader:
+                return_list.append(row)
+        return header, return_list
 
 def dataframe_to_list(df):
     """

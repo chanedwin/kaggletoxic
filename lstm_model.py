@@ -22,7 +22,7 @@ X_TEST_DATA_INDEX = 1
 Y_TRAIN_DATA_INDEX = 2
 Y_TEST_DATA_INDEX = 3
 
-MAX_VOCAB_SIZE = 50000
+MAX_VOCAB_SIZE = 200000
 MAX_NUM_WORDS_ONE_HOT = 300
 
 FILE_NAME_STRING_DELIMITER = "_"
@@ -59,13 +59,13 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             logger.info("training network")
 
             for e in range(number_of_epochs):
-                print("epoch %d" % e)
+                logger.info("number of epochs:".format(str(e)))
                 for X_train, Y_train in w2v_batch_generator(x_train, y_train):
                     model.fit(X_train, Y_train, batch_size=BATCH_SIZE, nb_epoch=1)
 
             validation = model.predict_classes(padded_x_test)
             logger.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
-            logger.info('print classification report\n %s', classification_report(y_test, validation))
+            logger.info('classification report\n %s', classification_report(y_test, validation))
 
             model_dict[key] = model
             results_dict[key] = validation
@@ -84,7 +84,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
         for index, text in enumerate(transformed_text):
             transformed_text[index] = np.array(text, dtype='int8')
         transformed_text = np.array(transformed_text)
-        print("shape of text is", transformed_text.shape)
+        logger.info("shape of text is", transformed_text.shape)
         vocab_size = len(tokenizer.word_counts)
         logger.info("vocab length is %s", len(tokenizer.word_counts))
 
@@ -98,17 +98,17 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
                                                                 random_state=42)
             padded_x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
 
-            print("training network")
+            logger.info("training network")
             model = build_keras_embeddings_model(max_vocab_size=vocab_size, max_length=MAX_NUM_WORDS_ONE_HOT)
-            print("vocab size is", vocab_size)
+            logger.info("vocab size is", vocab_size)
             for e in range(number_of_epochs):
-                print("epoch %d" % e)
+                logger.info("number of epochs: " + str(e))
                 for X_train, Y_train in novel_batch_generator(x_train, y_train):
                     model.fit(X_train, Y_train, batch_size=BATCH_SIZE, nb_epoch=1)
 
             validation = model.predict_classes(padded_x_test)
-            print('\nConfusion matrix\n', confusion_matrix(y_test, validation))
-            print(classification_report(y_test, validation))
+            logger.info('\nConfusion matrix\n', confusion_matrix(y_test, validation))
+            logger.info("classificaiton report", classification_report(y_test, validation))
             model_dict[key] = model
             results_dict[key] = validation
         return model_dict, results_dict, tokenizer  # THIS IS FAKE
@@ -136,18 +136,14 @@ def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_mo
             intermediate_layer_model = Model(inputs=model.input,
                                              outputs=model.get_layer(index=-2).output)
             intermediate_output = intermediate_layer_model.predict(padded_x_test)
-            results_dict[key] = np.array(intermediate_output)
+            results_dict[key] = np.array(intermediate_output, dtype='float16')
     return results_dict
 
 
 def w2v_batch_generator(x_train, y_train):
     i = BATCH_SIZE
     while i < len(x_train) + BATCH_SIZE:
-        for sample in x_train:
-            print(sample.shape)
         x = sequence.pad_sequences(x_train[i - BATCH_SIZE:i], maxlen=MAX_W2V_LENGTH, dtype='float16')
-        for sample in x:
-            print(sample[-1], sample[-1][0])
         y = y_train[i - BATCH_SIZE:i]
         yield x, y
         i += BATCH_SIZE
@@ -156,11 +152,8 @@ def w2v_batch_generator(x_train, y_train):
 def novel_batch_generator(x_train, y_train):
     i = BATCH_SIZE
     while i < len(x_train) + BATCH_SIZE:
-        for sample in x_train:
-            print(sample.shape)
         x = sequence.pad_sequences(x_train[i - BATCH_SIZE:i], maxlen=MAX_NUM_WORDS_ONE_HOT)
         y = y_train[i - BATCH_SIZE:i]
-        print(x.shape)
         yield x, y
         i += BATCH_SIZE
 

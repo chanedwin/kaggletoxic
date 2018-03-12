@@ -12,9 +12,9 @@ from sklearn.model_selection import train_test_split
 from gazette_model import process_bad_words
 from lda_model import get_lda_topics
 from lsi_model import build_LSI_model
-from lstm_model import lstm_main, lstm_predict
+from lstm_model import lstm_main, lstm_predict, MAX_VOCAB_SIZE
 from tf_idf_model import tf_idf_vectorizer_small, tf_idf_vectorizer_big, build_logistic_regression_model
-from utils import COMMENT_TEXT_INDEX, TRUTH_LABELS
+from utils import COMMENT_TEXT_INDEX, TRUTH_LABELS, BALANCED_DATA_FILE
 
 IGNORE_FLAG = 0
 TRAIN_NEW_FLAG = 1
@@ -44,18 +44,12 @@ TF_IDF_BIG = "tf_idf_small.npy"
 LSI_MODEL = "lsi.npy"
 LDA_MODEL = "lda.npy"
 
-BATCH_SIZE = 10
-
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
 Y_TRAIN_DATA_INDEX = 2
 Y_TEST_DATA_INDEX = 3
 
-MAX_BATCH_SIZE_PRE_TRAINED = 400
-
-MAX_NUM_WORDS_ONE_HOT = 50000
-
-MAX_W2V_LENGTH = 300
+BATCH_SIZE = 100
 
 
 def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, testing, save_file_directory="",
@@ -126,7 +120,7 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             novel_model_dict = {}
             from keras.preprocessing.text import Tokenizer
 
-            tokenizer = Tokenizer(num_words=MAX_NUM_WORDS_ONE_HOT,
+            tokenizer = Tokenizer(num_words=MAX_VOCAB_SIZE,
                                   filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
                                   lower=True,
                                   split=" ",
@@ -192,12 +186,10 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
         aggressively_positive_model_report[key] = np.array(
             [i[1] for i in aggressively_positive_model_report[key]]).reshape((50, 1))
     for key in truth_dictionary:
-        print(novel_results[key].shape)
-        print(w2v_results[key].shape)
         np_full_array = np.hstack(
             (sparse_gazette_matrices, w2v_results[key], novel_results[key], lsi_topics, lda_topics,
              aggressively_positive_model_report[key]))
-        print(np_full_array.shape)
+        logger.info("shape of array for wide network is", np_full_array.shape)
         deep_and_wide_network(np_full_array=np_full_array,
                               testing=testing,
                               truth_dictionary=truth_dictionary, key=key)
@@ -228,7 +220,6 @@ def deep_and_wide_network(np_full_array, testing, truth_dictionary, key):
                          metrics=['accuracy'])
     sparse_model.fit(full_x_train, y_train, batch_size=BATCH_SIZE, nb_epoch=1)
     sparse_model.evaluate(full_x_test, y_test)
-
     return sparse_model
 
 
@@ -278,9 +269,7 @@ if __name__ == "__main__":
 
         real_logger.info("starting real training")
         # real_model = load_w2v_model_from_path(W2V_MODEL)
-        print("starting real training")
-        # real_model = load_w2v_model_from_path(W2V_MODEL)
-        main(train_data_file=TRAIN_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
+        main(train_data_file=BALANCED_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
              summarized_sentences=summarized_sentence_data,
              w2v_model=sample_model, testing=False, save_file_directory=REAL_SAVE_FILE_PATH, train_new=True,
              train_flag_dict=feature_dictionary, logger=real_logger)
