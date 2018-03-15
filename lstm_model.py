@@ -2,6 +2,7 @@ import os
 import pickle
 import time
 
+import keras.callbacks
 import numpy as np
 from keras.layers import Dense
 from keras.layers import GRU, Embedding
@@ -11,8 +12,6 @@ from keras.preprocessing import sequence
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 
-from utils import COMMENT_TEXT_INDEX
-from utils import split_train_test
 from utils import transform_text_in_df_return_w2v_np_vectors
 
 W2V_TF_BATCH_SIZE = 1200
@@ -49,7 +48,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
     else:
         logger.info("running eval")
         grand_number_of_epochs = 1
-        number_of_epochs = 150
+        number_of_epochs = 10
 
     # process data
     logger.info("processing data")
@@ -57,31 +56,30 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
         np_vector_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
         model_dict = {}
         results_dict = {}
-
+        x_train_half = sequence.pad_sequences(np_vector_array[:len(np_vector_array) // 2], maxlen=MAX_W2V_LENGTH,
+                                              dtype='float16')
+        x_train_second_half = sequence.pad_sequences(np_vector_array[len(np_vector_array) // 2:], maxlen=MAX_W2V_LENGTH,
+                                                     dtype='float16')
+        np_vector_array = np.vstack((x_train_half, x_train_second_half))
         for key in truth_dictionary:
             x_train, x_test, y_train, y_test = train_test_split(np_vector_array, truth_dictionary[key],
                                                                 test_size=0.1,
-                                                                   random_state=42)
-            x_train_half = sequence.pad_sequences(x_train[:len(x_train)//2], maxlen=MAX_W2V_LENGTH, dtype='float16')
-            x_train_second_half = sequence.pad_sequences(x_train[len(x_train)//2:], maxlen=MAX_W2V_LENGTH, dtype='float16')
-            print(x_train_half.shape,x_train_second_half.shape)
-            x_train = np.vstack((x_train_half,x_train_second_half))
-            print(x_train.shape)
-
-            padded_x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH, dtype='float16')
+                                                                random_state=42)
 
             model = build_keras_model(max_len=MAX_W2V_LENGTH)
             logger.info("training network")
+            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
 
-            model.fit(x_train, y_train, batch_size=W2V_TF_BATCH_SIZE, epochs=number_of_epochs)
-            validation = model.predict_classes(padded_x_test)
+            model.fit(x_train, y_train, batch_size=W2V_TF_BATCH_SIZE, epochs=number_of_epochs,
+                      callbacks=[early_stop_callback, ])
+            validation = model.predict_classes(x_test)
+            logger.info('getting w2v results')
             logger.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
             logger.info('classification report\n %s', classification_report(y_test, validation))
-            print(model.predict_proba(padded_x_test[:50]))
             model_dict[key] = model
             results_dict[key] = validation
             # try some values
-        return model_dict, results_dict
+        return np_vector_array, model_dict, results_dict
     else:
         from keras.preprocessing.text import Tokenizer
 
@@ -95,42 +93,42 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
         for index, text in enumerate(transformed_text):
             transformed_text[index] = np.array(text, dtype='int32')
         transformed_text = np.array(transformed_text)
-        logger.info("shape of text is", transformed_text.shape)
-        vocab_size = len(tokenizer.word_counts)
-        logger.info("vocab length is %s", len(tokenizer.word_counts))
+        padded_text = []
+        for chunk in chunks(transformed_text, 10):
+            padded_text.extend(sequence.pad_sequences(chunk, maxlen=MAX_NUM_WORDS_ONE_HOT))
+        padded_text = np.array(padded_text)
 
-        logger.info("vocab length is %s", len(tokenizer.word_counts))
+        logger.info("shape of text is", padded_text.shape)
+        vocab_size = len(tokenizer.word_counts)
         model_dict = {}
         results_dict = {}
         for key in truth_dictionary:
-            x_train, x_test, y_train, y_test = train_test_split(transformed_text, truth_dictionary[key],
+            x_train, x_test, y_train, y_test = train_test_split(padded_text, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            padded_x_test = sequence.pad_sequences(x_test, maxlen=MAX_W2V_LENGTH)
-
             logger.info("training network")
             model = build_keras_embeddings_model(max_vocab_size=vocab_size, max_length=MAX_NUM_WORDS_ONE_HOT)
             logger.info("vocab size is", vocab_size)
-            for e in range(grand_number_of_epochs):
-                logger.info("number of epochs: " + str(e))
-                for X_train, Y_train in novel_batch_generator(x_train, y_train):
-                    model.fit(X_train, Y_train, batch_size=NOVEL_TF_BATCH_SIZE, epochs=number_of_epochs)
+            model.fit(x_train, y_train, batch_size=NOVEL_TF_BATCH_SIZE, epochs=number_of_epochs)
 
-            validation = model.predict_classes(padded_x_test)
-            print(model.predict_proba(padded_x_test[:50]))
-
+            validation = model.predict_classes(x_test)
+            logger.info('getting w2v results')
             logger.info('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             logger.info("classificaiton report", classification_report(y_test, validation))
             model_dict[key] = model
             results_dict[key] = validation
-        return model_dict, results_dict, tokenizer  # THIS IS FAKE
+        return padded_text, model_dict, results_dict, tokenizer  # THIS IS FAKE
 
 
-def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_model, use_w2v=True, logger=None):
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
+def lstm_predict(model_dict, predicted_data, truth_dictionary, use_w2v=True, logger=None):
     if use_w2v:
-        prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
-        np_text_array = transform_text_in_df_return_w2v_np_vectors(prediction_sentences, w2v_model)
-        padded_x_test = sequence.pad_sequences(np_text_array, maxlen=MAX_W2V_LENGTH)
+        padded_x_test = predicted_data
         results_dict = {}
         for key in truth_dictionary:
             model = model_dict[key]
@@ -139,9 +137,7 @@ def lstm_predict(model_dict, tokenizer, predicted_data, truth_dictionary, w2v_mo
             intermediate_output = intermediate_layer_model.predict(padded_x_test)
             results_dict[key] = np.array(intermediate_output)
     else:
-        prediction_sentences = predicted_data[COMMENT_TEXT_INDEX]
-        tokenized_predictions = tokenizer.texts_to_sequences(prediction_sentences)
-        padded_x_test = sequence.pad_sequences(tokenized_predictions, maxlen=MAX_NUM_WORDS_ONE_HOT)
+        padded_x_test = predicted_data
         results_dict = {}
         for key in truth_dictionary:
             model = model_dict[key]
