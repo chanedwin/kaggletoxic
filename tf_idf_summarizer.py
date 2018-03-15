@@ -172,7 +172,7 @@ def rank_sentences(doc, doc_matrix, feature_names, top_n=3):
 if __name__ == "__main__":
     from utils import load_data, COMMENT_TEXT_INDEX
 
-    data_file = './data/train.csv'
+    data_file = './data/balanced_train_file.csv'
     df = load_data(data_file)
     list_of_documents = df[COMMENT_TEXT_INDEX].values
     documents = summarize_long_sentences(list_of_documents)
@@ -190,4 +190,4 @@ if __name__ == "__main__":
     print(size_list)
     import pickle
 
-    pickle.dump(documents, open("./data/newtrain.p", "wb"))
+    pickle.dump(documents, open("./data/tf_balanced_train.p", "wb"))

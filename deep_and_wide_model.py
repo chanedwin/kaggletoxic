@@ -7,6 +7,7 @@ import pandas as pd
 from keras import Sequential
 from keras.layers import Dense, Dropout
 from keras.models import load_model
+from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 
 from gazette_model import process_bad_words
@@ -66,12 +67,11 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     train_sentences = train_df[COMMENT_TEXT_INDEX]
     summarized_sentences = summarized_sentences[:len(train_df)]
 
-    if testing:
-        truth_dictionary.popitem()
-        truth_dictionary.popitem()
-        truth_dictionary.popitem()
-        truth_dictionary.popitem()
-        truth_dictionary.popitem()
+    truth_dictionary.popitem()
+    truth_dictionary.popitem()
+    truth_dictionary.popitem()
+    truth_dictionary.popitem()
+    truth_dictionary.popitem()
 
     # get gazette matrices
     if train_flag_dict[GAZETTE_FLAG]:
@@ -88,10 +88,10 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     # get w2v lstm matrices
     if train_flag_dict[W2V_FLAG]:
         if train_new:
-            w2v_model_dict, w2v_result_dict = lstm_main(summarized_sentences=summarized_sentences,
-                                                        truth_dictionary=truth_dictionary,
-                                                        w2v_model=w2v_model, testing=testing,
-                                                        use_w2v=True, logger=logger)
+            np_vector_array, w2v_model_dict, w2v_result_dict = lstm_main(summarized_sentences=summarized_sentences,
+                                                                         truth_dictionary=truth_dictionary,
+                                                                         w2v_model=w2v_model, testing=testing,
+                                                                         use_w2v=True, logger=logger)
             for model_name in w2v_model_dict:
                 model = w2v_model_dict[model_name]
                 model.save(save_file_directory + model_name + PRE_TRAINED_RESULT)
@@ -99,16 +99,15 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             w2v_model_dict = {}
             for key in TRUTH_LABELS:
                 w2v_model_dict[key] = load_model(save_file_directory + key + PRE_TRAINED_RESULT)
-        w2v_results = lstm_predict(model_dict=w2v_model_dict, tokenizer=None, predicted_data=train_df,
+        w2v_results = lstm_predict(model_dict=w2v_model_dict, predicted_data=np_vector_array,
                                    truth_dictionary=truth_dictionary,
-                                   w2v_model=w2v_model,
                                    use_w2v=True, logger=logger)
-        logger.info(w2v_results)
+        logger.info("done getting w2v matrices of shape")
 
     # get novel lstm matrices
     if train_flag_dict[NOVEL_FLAG]:
         if train_new:
-            novel_model_dict, w2v_result_dict, tokenizer = lstm_main(
+            transformed_text, novel_model_dict, w2v_result_dict, tokenizer = lstm_main(
                 summarized_sentences=summarized_sentences,
                 truth_dictionary=truth_dictionary,
                 w2v_model=None, testing=testing,
@@ -128,17 +127,16 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             tokenizer.fit_on_texts(summarized_sentences)
             for key in TRUTH_LABELS:
                 novel_model_dict[key] = load_model(save_file_directory + key + NOVEL_TRAINED_RESULT)
-        novel_results = lstm_predict(model_dict=novel_model_dict, predicted_data=train_df, tokenizer=tokenizer,
+        novel_results = lstm_predict(model_dict=novel_model_dict, predicted_data=transformed_text,
                                      truth_dictionary=truth_dictionary,
-                                     w2v_model=None,
                                      use_w2v=False, logger=logger)
-        logger.info(novel_results)
+        logger.info("done getting novel matrices of shape")
 
     # get tf-idf vectorizer
     if train_flag_dict[TF_IDF_FLAG]:
         if train_new:
             vector_small = tf_idf_vectorizer_small(train_sentences, logger=logger)
-            logger.info(vector_small)
+            logger.info("getting tf-idf small vector of resultsd of shape", vector_small.shape)
             np.save(save_file_directory + TF_IDF_SMALL, vector_small)
         else:
             vector_small = np.load(save_file_directory + TF_IDF_SMALL)
@@ -149,12 +147,12 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary,
                                                                                  logger=logger)
             np.save(save_file_directory + TF_IDF_BIG, vector_big)
-            logger.info(aggressively_positive_model_report)
+            logger.info("getting tf-idf log reg resultsd of shape", aggressively_positive_model_report.shape)
         else:
             vector_big = np.load(save_file_directory + TF_IDF_BIG)
             aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary,
                                                                                  logger=logger)
-            logger.info(aggressively_positive_model_report)
+            logger.info("getting tf-idf log reg resultsd of shape", aggressively_positive_model_report.shape)
 
     # get lsi
     if train_flag_dict[LSI_FLAG]:
@@ -184,23 +182,29 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     assert sparse_gazette_matrices.shape == (len(train_sentences), 3933)
     for key in aggressively_positive_model_report:
         aggressively_positive_model_report[key] = np.array(
-            [i[1] for i in aggressively_positive_model_report[key]]).reshape((50, 1))
+            [i[1] for i in aggressively_positive_model_report[key]]).reshape(
+            (len(aggressively_positive_model_report[key]), 1))
     for key in truth_dictionary:
+        logger.info("training wide model now")
+
+        for array in (sparse_gazette_matrices, w2v_results[key], novel_results[key], lsi_topics, lda_topics,
+                      aggressively_positive_model_report[key]):
+            print(array.shape)
         np_full_array = np.hstack(
             (sparse_gazette_matrices, w2v_results[key], novel_results[key], lsi_topics, lda_topics,
              aggressively_positive_model_report[key]))
         logger.info("shape of array for wide network is", np_full_array.shape)
         deep_and_wide_network(np_full_array=np_full_array,
                               testing=testing,
-                              truth_dictionary=truth_dictionary, key=key)
+                              truth_dictionary=truth_dictionary, key=key, logger=logger)
 
 
-def deep_and_wide_network(np_full_array, testing, truth_dictionary, key):
+def deep_and_wide_network(np_full_array, testing, truth_dictionary, key, logger):
     # get w2v lstm matrices
     if testing:
         number_of_epochs = 1
     else:
-        number_of_epochs = 5
+        number_of_epochs = 100
 
     full_x_train, full_x_test, y_train, y_test = train_test_split(np_full_array, truth_dictionary[key],
                                                                   test_size=0.05, random_state=42)
@@ -218,15 +222,17 @@ def deep_and_wide_network(np_full_array, testing, truth_dictionary, key):
     sparse_model.compile(optimizer='rmsprop',
                          loss='binary_crossentropy',
                          metrics=['accuracy'])
-    sparse_model.fit(full_x_train, y_train, batch_size=BATCH_SIZE, nb_epoch=1)
+    sparse_model.fit(full_x_train, y_train, batch_size=BATCH_SIZE, nb_epoch=number_of_epochs)
     sparse_model.evaluate(full_x_test, y_test)
+    validation = sparse_model.predict_classes(full_x_test)
+    logger.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
+    logger.info('classification report\n %s', classification_report(y_test, validation))
     return sparse_model
 
 
 if __name__ == "__main__":
-    SUM_SENTENCES_FILE = './data/newtrain.p'
+    SUM_SENTENCES_FILE = './data/balanced_train.p'
     summarized_sentence_data = pickle.load(open(SUM_SENTENCES_FILE, "rb"))
-
     SAMPLE_DATA_FILE = './data/sample.csv'
     TRAIN_DATA_FILE = './data/small_train.csv'
     PREDICT_DATA_FILE = './data/test_predict.csv'
