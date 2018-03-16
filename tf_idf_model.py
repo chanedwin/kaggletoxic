@@ -39,21 +39,15 @@ def tf_idf_vectorizer_small(list_of_strings, choose_to_log_data=True, log_vector
     :return: sparse matrix
     :rtype: value
     """
-    vect_char = TfidfVectorizer(stop_words='english', analyzer='char', ngram_range=(3, 3))
-    vect_word = TfidfVectorizer(stop_words='english')
+    vect_word = TfidfVectorizer(stop_words='english', ngram_range=(2, 2),min_df=2)
     sparse_matrix_word = vect_word.fit_transform(list_of_strings)
-    sparse_matrix_char = vect_char.fit_transform(list_of_strings)
-    sparse_matrix_combined = sparse.hstack([sparse_matrix_word, sparse_matrix_char])
     if choose_to_log_data:
-        logger.info("\nsmall vector shape\n %s", sparse_matrix_combined.shape)
+        logger.info("\nsmall vector shape\n %s", sparse_matrix_word.shape)
     if log_vectorised_words:
-        logger.info("\nFeatures of vectorizer_character\n %s", vect_char.get_feature_names())
-        logger.info("\nRemoved Features of vectorizer_character \n %s", vect_char.get_stop_words())
-        logger.info("\nHyperparameters of vectorizer_character\n %s", vect_char.fit(list_of_strings))
         logger.info("\nFeatures of vectorizer_word\n %s", vect_word.get_feature_names())
         logger.info("\nRemoved Features of vectorizer_word \n %s", vect_word.get_stop_words())
         logger.info("\nHyperparameters of vectorizer_word\n %s", vect_word.fit(list_of_strings))
-    return sparse_matrix_combined
+    return sparse_matrix_word
 
 
 def build_logistic_regression_model(vector, truth_dictionary, choose_to_log_data=True, logger=None):

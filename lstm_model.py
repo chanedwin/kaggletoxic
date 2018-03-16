@@ -14,15 +14,17 @@ from sklearn.model_selection import train_test_split
 
 from utils import transform_text_in_df_return_w2v_np_vectors
 
+TRAINING_TIME_EPOCHS = 100
+
 W2V_TF_BATCH_SIZE = 1200
 W2V_GENERATOR_BATCH_SIZE = 10000
 
-NOVEL_TF_BATCH_SIZE = 100
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
 Y_TRAIN_DATA_INDEX = 2
 Y_TEST_DATA_INDEX = 3
 
+NOVEL_TF_BATCH_SIZE = 1000
 MAX_VOCAB_SIZE = 200000
 MAX_NUM_WORDS_ONE_HOT = 300
 
@@ -48,7 +50,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
     else:
         logger.info("running eval")
         grand_number_of_epochs = 1
-        number_of_epochs = 10
+        number_of_epochs = TRAINING_TIME_EPOCHS
 
     # process data
     logger.info("processing data")
@@ -71,7 +73,7 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
 
             model.fit(x_train, y_train, batch_size=W2V_TF_BATCH_SIZE, epochs=number_of_epochs,
-                      callbacks=[early_stop_callback, ])
+                      callbacks=[early_stop_callback, ], validation_data=(x_test, y_test))
             validation = model.predict_classes(x_test)
             logger.info('getting w2v results')
             logger.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
@@ -108,8 +110,11 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
                                                                 random_state=42)
             logger.info("training network")
             model = build_keras_embeddings_model(max_vocab_size=vocab_size, max_length=MAX_NUM_WORDS_ONE_HOT)
-            logger.info("vocab size is", vocab_size)
-            model.fit(x_train, y_train, batch_size=NOVEL_TF_BATCH_SIZE, epochs=number_of_epochs)
+            logger.info("vocab size is", str(vocab_size))
+            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
+
+            model.fit(x_train, y_train, batch_size=NOVEL_TF_BATCH_SIZE, epochs=number_of_epochs,
+                      callbacks=[early_stop_callback, ], validation_data=(x_test, y_test))
 
             validation = model.predict_classes(x_test)
             logger.info('getting w2v results')
@@ -180,11 +185,13 @@ def build_keras_model(max_len, testing=False):
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
 
-    model.add(GRU(64, return_sequences=True, input_shape=(max_len, 300)))
+    model.add(GRU(128, return_sequences=True, input_shape=(max_len, 300)))
     if not testing:
+        model.add(GRU(128, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
+
         model.add(GRU(32))  # return a single vector of dimension 32
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
@@ -199,10 +206,11 @@ def build_keras_embeddings_model(max_vocab_size, max_length, testing=False):
 
     model.add(Embedding(max_vocab_size, 64, input_length=max_length))
     if not testing:
-        model.add(GRU(64, return_sequences=True))
+        model.add(GRU(128, return_sequences=True))
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
+
     model.add(GRU(32))  # return a single vector of dimension 32
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
