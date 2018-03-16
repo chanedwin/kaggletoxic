@@ -57,7 +57,6 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
     if use_w2v:
         np_vector_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
         model_dict = {}
-        results_dict = {}
         x_train_half = sequence.pad_sequences(np_vector_array[:len(np_vector_array) // 2], maxlen=MAX_W2V_LENGTH,
                                               dtype='float16')
         x_train_second_half = sequence.pad_sequences(np_vector_array[len(np_vector_array) // 2:], maxlen=MAX_W2V_LENGTH,
@@ -74,14 +73,12 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
 
             model.fit(x_train, y_train, batch_size=W2V_TF_BATCH_SIZE, epochs=number_of_epochs,
                       callbacks=[early_stop_callback, ], validation_data=(x_test, y_test))
-            validation = model.predict_classes(x_test)
             logger.info('getting w2v results')
             logger.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
             logger.info('classification report\n %s', classification_report(y_test, validation))
             model_dict[key] = model
-            results_dict[key] = validation
             # try some values
-        return np_vector_array, model_dict, results_dict
+        return np_vector_array, model_dict
     else:
         from keras.preprocessing.text import Tokenizer
 
@@ -103,7 +100,6 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
         logger.info("shape of text is", padded_text.shape)
         vocab_size = len(tokenizer.word_counts)
         model_dict = {}
-        results_dict = {}
         for key in truth_dictionary:
             x_train, x_test, y_train, y_test = train_test_split(padded_text, truth_dictionary[key],
                                                                 test_size=0.1,
@@ -116,13 +112,11 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             model.fit(x_train, y_train, batch_size=NOVEL_TF_BATCH_SIZE, epochs=number_of_epochs,
                       callbacks=[early_stop_callback, ], validation_data=(x_test, y_test))
 
-            validation = model.predict_classes(x_test)
             logger.info('getting w2v results')
             logger.info('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             logger.info("classificaiton report", classification_report(y_test, validation))
             model_dict[key] = model
-            results_dict[key] = validation
-        return padded_text, model_dict, results_dict, tokenizer  # THIS IS FAKE
+        return padded_text, model_dict, tokenizer  # THIS IS FAKE
 
 
 def chunks(l, n):

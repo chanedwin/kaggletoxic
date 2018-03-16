@@ -81,35 +81,24 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
         sparse_gazette_matrices = process_bad_words(train_sentences)
         np.save(save_file_directory + SPARSE_ARRAY_NAME, sparse_gazette_matrices)
         assert sparse_gazette_matrices.shape == (len(train_sentences), 3933)
-    if train_flag_dict[GAZETTE_FLAG] == REUSE:
-        sparse_gazette_matrices = np.load(save_file_directory + SPARSE_ARRAY_NAME)
-        assert sparse_gazette_matrices.shape == (len(train_sentences), 3933)
-        logger.info("done getting sparse matrices of shape %s", sparse_gazette_matrices.shape)
-    del sparse_gazette_matrices
+        del sparse_gazette_matrices
 
     # get w2v lstm matrices
     if train_flag_dict[W2V_FLAG] == TRAIN:
-        np_vector_array, w2v_model_dict, w2v_result_dict = lstm_main(summarized_sentences=summarized_sentences,
-                                                                     truth_dictionary=truth_dictionary,
-                                                                     w2v_model=w2v_model, testing=testing,
-                                                                     use_w2v=True, logger=logger)
+        np_vector_array, w2v_model_dict = lstm_main(summarized_sentences=summarized_sentences,
+                                                    truth_dictionary=truth_dictionary,
+                                                    w2v_model=w2v_model, testing=testing,
+                                                    use_w2v=True, logger=logger)
         for model_name in w2v_model_dict:
             model = w2v_model_dict[model_name]
             model.save(save_file_directory + model_name + PRE_TRAINED_RESULT)
         np.save(save_file_directory + W2V_VECTOR_NAME, np_vector_array)
-    if train_flag_dict[W2V_FLAG] == REUSE:
-        w2v_model_dict = {}
-        np_vector_array = np.load(save_file_directory + W2V_VECTOR_NAME)
-        for key in truth_dictionary:
-            w2v_model_dict[key] = load_model(save_file_directory + key + PRE_TRAINED_RESULT)
-    w2v_results = lstm_predict(model_dict=w2v_model_dict, predicted_data=np_vector_array,
-                               truth_dictionary=truth_dictionary,
-                               use_w2v=True, logger=logger)
-    logger.info("done getting w2v matrices of shape")
+        del (np_vector_array)
+        del (w2v_model_dict)
 
     # get novel lstm matrices
     if train_flag_dict[NOVEL_FLAG] == TRAIN:
-        transformed_text, novel_model_dict, w2v_result_dict, tokenizer = lstm_main(
+        transformed_text, novel_model_dict, tokenizer = lstm_main(
             summarized_sentences=summarized_sentences,
             truth_dictionary=truth_dictionary,
             w2v_model=None, testing=testing,
@@ -118,23 +107,8 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
             model = novel_model_dict[model_name]
             model.save(save_file_directory + model_name + NOVEL_TRAINED_RESULT)
         np.save(save_file_directory + NOVEL_VECTOR_NAME, transformed_text)
-    if train_flag_dict[NOVEL_FLAG] == REUSE:
-        novel_model_dict = {}
-        from keras.preprocessing.text import Tokenizer
-
-        tokenizer = Tokenizer(num_words=MAX_VOCAB_SIZE,
-                              filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
-                              lower=True,
-                              split=" ",
-                              char_level=False)
-        tokenizer.fit_on_texts(summarized_sentences)
-        for key in truth_dictionary:
-            novel_model_dict[key] = load_model(save_file_directory + key + NOVEL_TRAINED_RESULT)
-        transformed_text = np.load(save_file_directory + NOVEL_VECTOR_NAME)
-    novel_results = lstm_predict(model_dict=novel_model_dict, predicted_data=transformed_text,
-                                 truth_dictionary=truth_dictionary,
-                                 use_w2v=False, logger=logger)
-    logger.info("done getting novel matrices of shape")
+        del (transformed_text)
+        del (novel_model_dict)
 
     # get tf-idf vectorizer
     if train_flag_dict[TF_IDF_FLAG] == TRAIN:
@@ -147,12 +121,6 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
                                                                              logger=logger)
         np.save(save_file_directory + TF_IDF_BIG, vector_big)
         logger.info("getting tf-idf log reg results")
-    if train_flag_dict[TF_IDF_FLAG] == REUSE:
-        vector_small = np.load(save_file_directory + TF_IDF_SMALL)
-        vector_big = np.load(save_file_directory + TF_IDF_BIG)
-        aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary,
-                                                                             logger=logger)
-        logger.info("getting tf-idf log reg results")
 
     # reshaping needed because only interested in class 1
     for key in aggressively_positive_model_report:
@@ -164,18 +132,57 @@ def main(train_data_file, predict_data_file, summarized_sentences, w2v_model, te
     if train_flag_dict[LSI_FLAG] == TRAIN:
         lsi_topics = build_LSI_model(train_sentences)
         np.save(save_file_directory + LSI_MODEL, lsi_topics)
-    if train_flag_dict[LSI_FLAG] == REUSE:
-        lsi_topics = np.load(save_file_directory + LSI_MODEL)
 
     # get lda
     if train_flag_dict[LDA_FLAG] == TRAIN:
         lda_topics = get_lda_topics(train_sentences)
         np.save(save_file_directory + LDA_MODEL, lda_topics)
+
+    if train_flag_dict[LSI_FLAG] == REUSE:
+        lsi_topics = np.load(save_file_directory + LSI_MODEL)
+
     if train_flag_dict[LDA_FLAG] == REUSE:
         lda_topics = np.load(save_file_directory + LDA_MODEL)
 
 
     sparse_gazette_matrices = np.load(save_file_directory + SPARSE_ARRAY_NAME)
+    assert sparse_gazette_matrices.shape == (len(train_sentences), 3933)
+    logger.info("done getting sparse matrices of shape %s", sparse_gazette_matrices.shape)
+
+
+    w2v_model_dict = {}
+    np_vector_array = np.load(save_file_directory + W2V_VECTOR_NAME)
+    for key in truth_dictionary:
+        w2v_model_dict[key] = load_model(save_file_directory + key + PRE_TRAINED_RESULT)
+    w2v_results = lstm_predict(model_dict=w2v_model_dict, predicted_data=np_vector_array,
+                               truth_dictionary=truth_dictionary,
+                               use_w2v=True, logger=logger)
+    logger.info("done getting w2v matrices of shape")
+
+    novel_model_dict = {}
+    from keras.preprocessing.text import Tokenizer
+
+    tokenizer = Tokenizer(num_words=MAX_VOCAB_SIZE,
+                          filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
+                          lower=True,
+                          split=" ",
+                          char_level=False)
+    tokenizer.fit_on_texts(summarized_sentences)
+    for key in truth_dictionary:
+        novel_model_dict[key] = load_model(save_file_directory + key + NOVEL_TRAINED_RESULT)
+    transformed_text = np.load(save_file_directory + NOVEL_VECTOR_NAME)
+    novel_results = lstm_predict(model_dict=novel_model_dict, predicted_data=transformed_text,
+                                 truth_dictionary=truth_dictionary,
+                                 use_w2v=False, logger=logger)
+    logger.info("done getting novel matrices of shape")
+
+    if train_flag_dict[TF_IDF_FLAG] == REUSE:
+        vector_small = np.load(save_file_directory + TF_IDF_SMALL)
+        vector_big = np.load(save_file_directory + TF_IDF_BIG)
+        aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary,
+                                                                             logger=logger)
+
+        logger.info("getting tf-idf log reg results")
 
     for key in truth_dictionary:
         logger.info("training wide model now")
@@ -219,7 +226,8 @@ def deep_and_wide_network(np_full_array, testing, truth_dictionary, key, logger)
                          metrics=['accuracy'])
     early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
 
-    sparse_model.fit(full_x_train, y_train, batch_size=BATCH_SIZE, nb_epoch=number_of_epochs,callbacks=[early_stop_callback,])
+    sparse_model.fit(full_x_train, y_train, batch_size=BATCH_SIZE, nb_epoch=number_of_epochs,
+                     callbacks=[early_stop_callback, ])
     sparse_model.evaluate(full_x_test, y_test)
     validation = sparse_model.predict_classes(full_x_test)
     logger.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
@@ -242,13 +250,13 @@ if __name__ == "__main__":
     # SUPER IMPORTANT FLAG
 
     train_new = False  # True if training new model, else false
-    EXPT_NAME = "16_03_18_11_48_51"  # ONLY USED OF train_new = False
+    EXPT_NAME = "16_03_18_09_58_48"  # ONLY USED OF train_new = False
     feature_dictionary = {GAZETTE_FLAG: REUSE,
                           W2V_FLAG: REUSE,
                           NOVEL_FLAG: REUSE,
                           LDA_FLAG: REUSE,
                           LSI_FLAG: REUSE,
-                          TF_IDF_FLAG: REUSE,
+                          TF_IDF_FLAG: TRAIN,
                           FAST_TEXT_FLAG: IGNORE}
     # -----------------------------------------------------------------------------------------------------------------
 
@@ -289,4 +297,4 @@ if __name__ == "__main__":
         main(train_data_file=BALANCED_DATA_FILE, predict_data_file=PREDICT_DATA_FILE,
              summarized_sentences=summarized_sentence_data,
              w2v_model=sample_model, testing=False, save_file_directory=REAL_SAVE_FILE_PATH, train_new=False,
-             train_flag_dict=feature_dictionary,logger = real_logger)
+             train_flag_dict=feature_dictionary, logger=real_logger)
