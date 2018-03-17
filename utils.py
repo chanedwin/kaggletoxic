@@ -3,7 +3,11 @@ import logging
 import numpy as np
 import pandas as pd
 from gensim.models import KeyedVectors
+from keras.preprocessing import sequence
 from nltk.tokenize import TweetTokenizer
+
+
+MAX_W2V_LENGTH = 300
 
 X_TRAIN_DATA_INDEX = 0
 X_TEST_DATA_INDEX = 1
@@ -25,7 +29,7 @@ BALANCED_DATA_FILE = './data/balanced_train_file.csv'
 W2V_MODEL = './models/w2v.840B.300d.txt'
 
 
-def load_data(data_file,type='pd'):
+def load_data(data_file, type='pd'):
     """
 
     :param data_file: path to train data file
@@ -38,15 +42,16 @@ def load_data(data_file,type='pd'):
         df = pd.read_csv(data_file)
 
         return df
-    else :
+    else:
         import csv
-        with open(data_file) as f :
+        with open(data_file) as f:
             reader = csv.reader(f)
             header = next(reader)
             return_list = []
             for row in reader:
                 return_list.append(row)
         return header, return_list
+
 
 def dataframe_to_list(df):
     """
@@ -105,13 +110,23 @@ def transform_text_in_df_return_w2v_np_vectors(list_of_sentences, w2v_model):
     list_of_sentences = drop_words_with_no_vectors_at_all_in_w2v(
         list_of_sentences)  # because some text return nothing, must remove ground truth too
     np_text_array = np.array(list_of_sentences)
+    padded_text = []
+    for chunk in chunks(np_text_array, 10):
+        padded_text.extend(sequence.pad_sequences(chunk, maxlen=MAX_W2V_LENGTH))
+    np_text_array = np.array(padded_text)
     return np_text_array
+
+
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
 
 
 def extract_truth_labels_as_dict(df):
     dictionary_of_truth_labels = {}
     for key in TRUTH_LABELS:
-        value = np.array(df[key].as_matrix(),dtype='int8')
+        value = np.array(df[key].as_matrix(), dtype='int8')
         dictionary_of_truth_labels[key] = value
     return dictionary_of_truth_labels
 

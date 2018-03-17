@@ -14,6 +14,7 @@ COMBI = './data/combined'
 SAMPLE_DATA_FILE = './data/sample.csv'
 DATA_FILE = './data/train.csv'
 
+
 def process_bad_words(sentences):
     bad_words = bad_word_processor(UNPROCESSED_BAD_WORDS_DATA)
     sparse_gazette_matrixes = filt(bad_words, sentences)
