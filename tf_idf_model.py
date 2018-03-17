@@ -6,7 +6,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 from utils import COMMENT_TEXT_INDEX, load_data, initalise_logging
 
 
-def tf_idf_vectorizer_big(list_of_strings, choose_to_log_data=True, log_vectorised_words=False, logger=None):
+def tf_idf_vectorizer_big(list_of_strings, choose_to_log_data=True, log_vectorised_words=False):
     """
     function should return tf-idf logistic regression score
     :param : list
@@ -31,7 +31,7 @@ def tf_idf_vectorizer_big(list_of_strings, choose_to_log_data=True, log_vectoris
     return sparse_matrix_combined
 
 
-def tf_idf_vectorizer_small(list_of_strings, choose_to_log_data=True, log_vectorised_words=False, logger=None):
+def tf_idf_vectorizer_small(list_of_strings, choose_to_log_data=True, log_vectorised_words=False):
     """
     function should return tf-idf logistic regression score
     :param : list
@@ -56,18 +56,17 @@ def tf_idf_vectorizer_small(list_of_strings, choose_to_log_data=True, log_vector
     return sparse_matrix_combined
 
 
-def build_logistic_regression_model(vector, truth_dictionary, choose_to_log_data=True, logger=None):
+def build_logistic_regression_model(vector, truth_dictionary, choose_to_log_data=True):
     dict_of_pred_probability = {}
+    logger = initalise_logging('./data/Log_files/')
     for i, col in enumerate(truth_dictionary):
         lr = LogisticRegression(random_state=i, class_weight=None, solver='saga', n_jobs=-1, multi_class='ovr')
         lr.fit(vector, truth_dictionary[col])
         pred = lr.predict(vector)
         col = str(col)
         if choose_to_log_data:
-            logger.info('print truth_dictornary_column\n %s', truth_dictionary[col])
-            logger.info('print unfitted vector\n %s', vector)
             logger.info('\nConfusion matrix\n %s', confusion_matrix(truth_dictionary[col], pred))
-            logger.info('print classification report\n %s', classification_report(truth_dictionary[col], pred))
+            logger.info('\nprint classification report\n %s', classification_report(truth_dictionary[col], pred))
         dict_of_pred_probability[str(col)] = lr.predict_proba(vector)
     return dict_of_pred_probability
 
@@ -75,7 +74,7 @@ def build_logistic_regression_model(vector, truth_dictionary, choose_to_log_data
 if __name__ == "__main__":
     SAMPLE_DATA_FILE = './data/sample.csv'
     DATA_FILE = './data/train.csv'
-    logger = initalise_logging()
+    logger = initalise_logging('./data/Log_files/')
     df = load_data(SAMPLE_DATA_FILE)
     vector_big = tf_idf_vectorizer_big(df[COMMENT_TEXT_INDEX])
     vector_small = tf_idf_vectorizer_big(df[COMMENT_TEXT_INDEX])
