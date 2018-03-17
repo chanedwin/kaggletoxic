@@ -17,7 +17,7 @@ def tf_idf_vectorizer_big(list_of_strings, choose_to_log_data=True, log_vectoris
     :rtype: value
     """
     vect_char = TfidfVectorizer(stop_words='english', analyzer='char', ngram_range=(2, 6), min_df=20)
-    vect_word = TfidfVectorizer(stop_words='english')
+    vect_word = TfidfVectorizer(stop_words='english', min_df=20)
     sparse_matrix_word = vect_word.fit_transform(list_of_strings)
     sparse_matrix_char = vect_char.fit_transform(list_of_strings)
     sparse_matrix_combined = sparse.hstack([sparse_matrix_word, sparse_matrix_char])
