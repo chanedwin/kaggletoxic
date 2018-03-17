@@ -12,11 +12,13 @@ from keras.preprocessing import sequence
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 
-from utils import transform_text_in_df_return_w2v_np_vectors
+from utils import transform_text_in_df_return_w2v_np_vectors, chunks
 
-TRAINING_TIME_EPOCHS = 100
+PATIENCE = 10
 
-W2V_TF_BATCH_SIZE = 1200
+TRAINING_TIME_EPOCHS = 500
+
+W2V_TF_BATCH_SIZE = 1000
 W2V_GENERATOR_BATCH_SIZE = 10000
 
 X_TRAIN_DATA_INDEX = 0
@@ -57,23 +59,22 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
     if use_w2v:
         np_vector_array = transform_text_in_df_return_w2v_np_vectors(summarized_sentences, w2v_model)
         model_dict = {}
-        x_train_half = sequence.pad_sequences(np_vector_array[:len(np_vector_array) // 2], maxlen=MAX_W2V_LENGTH,
-                                              dtype='float16')
-        x_train_second_half = sequence.pad_sequences(np_vector_array[len(np_vector_array) // 2:], maxlen=MAX_W2V_LENGTH,
-                                                     dtype='float16')
-        np_vector_array = np.vstack((x_train_half, x_train_second_half))
         for key in truth_dictionary:
             x_train, x_test, y_train, y_test = train_test_split(np_vector_array, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
 
             model = build_keras_model(max_len=MAX_W2V_LENGTH)
-            logger.info("training network")
-            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
+            logger.info("training w2v network")
+            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=PATIENCE, verbose=0,
+                                                                mode='auto')
 
-            model.fit(x_train, y_train, batch_size=W2V_TF_BATCH_SIZE, epochs=number_of_epochs,
-                      callbacks=[early_stop_callback, ], validation_data=(x_test, y_test))
+            history = model.fit(x_train, y_train, batch_size=W2V_TF_BATCH_SIZE, epochs=number_of_epochs,
+                                callbacks=[early_stop_callback, ], validation_data=(x_test, y_test))
+            logger.info(str(history.history))
             logger.info('getting w2v results')
+            logger.info("number of epochs completed is" + str(len(history.history['loss'])))
+            validation = model.predict_classes(x_test)
             logger.info('\nConfusion matrix\n %s', confusion_matrix(y_test, validation))
             logger.info('classification report\n %s', classification_report(y_test, validation))
             model_dict[key] = model
@@ -97,32 +98,28 @@ def lstm_main(summarized_sentences, truth_dictionary, w2v_model, testing, use_w2
             padded_text.extend(sequence.pad_sequences(chunk, maxlen=MAX_NUM_WORDS_ONE_HOT))
         padded_text = np.array(padded_text)
 
-        logger.info("shape of text is", padded_text.shape)
         vocab_size = len(tokenizer.word_counts)
         model_dict = {}
         for key in truth_dictionary:
             x_train, x_test, y_train, y_test = train_test_split(padded_text, truth_dictionary[key],
                                                                 test_size=0.1,
                                                                 random_state=42)
-            logger.info("training network")
+            logger.info("training novel network")
             model = build_keras_embeddings_model(max_vocab_size=vocab_size, max_length=MAX_NUM_WORDS_ONE_HOT)
-            logger.info("vocab size is", str(vocab_size))
-            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=4, verbose=0, mode='auto')
+            logger.info("vocab size is" + str(vocab_size))
+            early_stop_callback = keras.callbacks.EarlyStopping(monitor='val_loss', patience=PATIENCE, verbose=0,
+                                                                mode='auto')
 
-            model.fit(x_train, y_train, batch_size=NOVEL_TF_BATCH_SIZE, epochs=number_of_epochs,
-                      callbacks=[early_stop_callback, ], validation_data=(x_test, y_test))
-
+            history = model.fit(x_train, y_train, batch_size=NOVEL_TF_BATCH_SIZE, epochs=number_of_epochs,
+                                callbacks=[early_stop_callback, ], validation_data=(x_test, y_test))
+            logger.info(str(history.history))
+            logger.info("number of epochs completed is" + str(len(history.history['loss'])))
+            validation = model.predict_classes(x_test)
             logger.info('getting w2v results')
             logger.info('\nConfusion matrix\n', confusion_matrix(y_test, validation))
             logger.info("classificaiton report", classification_report(y_test, validation))
             model_dict[key] = model
-        return padded_text, model_dict, tokenizer  # THIS IS FAKE
-
-
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
+        return padded_text, model_dict, tokenizer
 
 
 def lstm_predict(model_dict, predicted_data, truth_dictionary, use_w2v=True, logger=None):
@@ -179,14 +176,14 @@ def build_keras_model(max_len, testing=False):
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
 
-    model.add(GRU(128, return_sequences=True, input_shape=(max_len, 300)))
+    model.add(GRU(300, return_sequences=True, input_shape=(max_len, 300)))
     if not testing:
-        model.add(GRU(128, return_sequences=True))  # returns a sequence of vectors of dimension 32
+        model.add(GRU(200, return_sequences=True))  # returns a sequence of vectors of dimension 32
+        model.add(GRU(128, return_sequences=True))
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
-
-        model.add(GRU(32))  # return a single vector of dimension 32
+    model.add(GRU(32))  # return a single vector of dimension 32
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
                   optimizer='rmsprop',
@@ -198,13 +195,13 @@ def build_keras_embeddings_model(max_vocab_size, max_length, testing=False):
     # expected input data shape: (batch_size, timesteps, data_dim)
     model = Sequential()
 
-    model.add(Embedding(max_vocab_size, 64, input_length=max_length))
+    model.add(Embedding(max_vocab_size, 300, input_length=max_length))
     if not testing:
+        model.add(GRU(200, return_sequences=True))
         model.add(GRU(128, return_sequences=True))
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
         model.add(GRU(64, return_sequences=True))  # returns a sequence of vectors of dimension 32
-
     model.add(GRU(32))  # return a single vector of dimension 32
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',

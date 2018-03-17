@@ -24,13 +24,13 @@ def tf_idf_vectorizer_big(list_of_strings, choose_to_log_data=True, log_vectoris
     if choose_to_log_data:
         logger.info("\nbig vector shape\n %s", sparse_matrix_combined.shape)
     if log_vectorised_words:
-        logger.info("\nFeatures of vectorizer_character %s", vect_char.get_feature_names())
-        logger.info("\nRemoved Features of vectorizer_character %s", vect_char.get_stop_words())
-        logger.info("\nHyperparameters of vectorizer_character %s", vect_char.fit(list_of_strings))
-        logger.info("\nFeatures of vectorizer_word %s", vect_word.get_feature_names())
-        logger.info("\nRemoved Features of vectorizer_word %s", vect_word.get_stop_words())
-        logger.info("\nHyperparameters of vectorizer_word %s", vect_word.fit(list_of_strings))
-    return sparse_matrix_combined
+        logger.info("\nFeatures of vectorizer_character\n %s", vect_char.get_feature_names())
+        logger.info("\nRemoved Features of vectorizer_character \n %s", vect_char.get_stop_words())
+        logger.info("\nHyperparameters of vectorizer_character\n %s", vect_char.fit(list_of_strings))
+        logger.info("\nFeatures of vectorizer_word\n %s", vect_word.get_feature_names())
+        logger.info("\nRemoved Features of vectorizer_word \n %s", vect_word.get_stop_words())
+        logger.info("\nHyperparameters of vectorizer_word\n %s", vect_word.fit(list_of_strings))
+    return sparse_matrix_combined, vect_char, vect_word
 
 
 def tf_idf_vectorizer_small(list_of_strings, choose_to_log_data=True, log_vectorised_words=False, logger=None):
@@ -41,7 +41,6 @@ def tf_idf_vectorizer_small(list_of_strings, choose_to_log_data=True, log_vector
     :return: sparse matrix
     :rtype: value
     """
-
     vect_word = TfidfVectorizer(stop_words='english', min_df=20)
     sparse_matrix_word = vect_word.fit_transform(list_of_strings)
     if choose_to_log_data:
@@ -55,17 +54,20 @@ def tf_idf_vectorizer_small(list_of_strings, choose_to_log_data=True, log_vector
 
 def build_logistic_regression_model(vector, truth_dictionary, choose_to_log_data=True, logger=None):
     dict_of_pred_probability = {}
-    logger = initalise_logging('./data/Log_files/')
-    for i, col in enumerate(truth_dictionary):
+    lr_dict = {}
+    for i, key in enumerate(truth_dictionary):
         lr = LogisticRegression(random_state=i, solver='liblinear', n_jobs=-1)
-        lr.fit(vector, truth_dictionary[col])
+        lr.fit(vector, truth_dictionary[key])
         pred = lr.predict(vector)
-        col = str(col)
+        key = str(key)
         if choose_to_log_data:
-            #logger.info('\nConfusion matrix for ' + col + '\n %s', confusion_matrix(truth_dictionary[col], pred))
-            logger.info('\nclassification report for ' + col + '\n %s', classification_report(truth_dictionary[col], pred))
-        dict_of_pred_probability[str(col)] = lr.predict_proba(vector)
-    return dict_of_pred_probability
+            logger.info('print truth_dictornary_column\n %s', truth_dictionary[key])
+            logger.info('print unfitted vector\n %s', vector)
+            logger.info('\nConfusion matrix\n %s', confusion_matrix(truth_dictionary[key], pred))
+            logger.info('print classification report\n %s', classification_report(truth_dictionary[key], pred))
+        dict_of_pred_probability[key] = lr.predict_proba(vector)
+        lr_dict[key] = lr
+    return lr_dict, dict_of_pred_probability
 
 
 if __name__ == "__main__":
