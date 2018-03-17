@@ -3,7 +3,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, classification_report
 from utils import extract_truth_labels_as_dict
-
+import re
 
 from utils import COMMENT_TEXT_INDEX, load_data, initalise_logging
 
@@ -16,8 +16,10 @@ def tf_idf_vectorizer_big(list_of_strings, choose_to_log_data=True, log_vectoris
     :return: sparse matrix
     :rtype: value
     """
-    vect_char = TfidfVectorizer(stop_words='english', analyzer='char', ngram_range=(2, 6), min_df=20)
-    vect_word = TfidfVectorizer(stop_words='english', min_df=20)
+    search_and_replace_numerals_with_space = lambda x: re.sub(r'(\d[\d\.])+', '', x.lower())
+    vect_char = TfidfVectorizer(preprocessor=search_and_replace_numerals_with_space, stop_words='english',
+                                analyzer='char', ngram_range=(2, 6), min_df=20)
+    vect_word = TfidfVectorizer(preprocessor=search_and_replace_numerals_with_space, stop_words='english', min_df=20)
     sparse_matrix_word = vect_word.fit_transform(list_of_strings)
     sparse_matrix_char = vect_char.fit_transform(list_of_strings)
     sparse_matrix_combined = sparse.hstack([sparse_matrix_word, sparse_matrix_char])
@@ -30,7 +32,7 @@ def tf_idf_vectorizer_big(list_of_strings, choose_to_log_data=True, log_vectoris
         logger.info("\nFeatures of vectorizer_word\n %s", vect_word.get_feature_names())
         logger.info("\nRemoved Features of vectorizer_word \n %s", vect_word.get_stop_words())
         logger.info("\nHyperparameters of vectorizer_word\n %s", vect_word.fit(list_of_strings))
-    return sparse_matrix_combined, vect_char, vect_word
+    return sparse_matrix_combined
 
 
 def tf_idf_vectorizer_small(list_of_strings, choose_to_log_data=True, log_vectorised_words=False, logger=None):
@@ -56,7 +58,7 @@ def build_logistic_regression_model(vector, truth_dictionary, choose_to_log_data
     dict_of_pred_probability = {}
     lr_dict = {}
     for i, key in enumerate(truth_dictionary):
-        lr = LogisticRegression(random_state=i, solver='liblinear', n_jobs=-1)
+        lr = LogisticRegression(random_state=i, solver='saga', n_jobs=-1)
         lr.fit(vector, truth_dictionary[key])
         pred = lr.predict(vector)
         key = str(key)
@@ -64,7 +66,8 @@ def build_logistic_regression_model(vector, truth_dictionary, choose_to_log_data
             logger.info('print truth_dictornary_column\n %s', truth_dictionary[key])
             logger.info('print unfitted vector\n %s', vector)
             logger.info('\nConfusion matrix\n %s', confusion_matrix(truth_dictionary[key], pred))
-            logger.info('print classification report\n %s', classification_report(truth_dictionary[key], pred))
+            logger.info('print classification report for ' + str(key) + '\n%s',
+                        classification_report(truth_dictionary[key], pred))
         dict_of_pred_probability[key] = lr.predict_proba(vector)
         lr_dict[key] = lr
     return lr_dict, dict_of_pred_probability
@@ -78,6 +81,5 @@ if __name__ == "__main__":
     train_sentences = train_df[COMMENT_TEXT_INDEX]
     truth_dictionary = extract_truth_labels_as_dict(train_df)
     vector_big = tf_idf_vectorizer_big(train_sentences, logger=logger)
-    #vector_small = tf_idf_vectorizer_small(train_sentences, logger=logger)
-    aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary,
-                                                                             logger=logger)
+    vector_small = tf_idf_vectorizer_small(train_sentences, logger=logger)
+    aggressively_positive_model_report = build_logistic_regression_model(vector_big, truth_dictionary, logger=logger)

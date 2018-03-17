@@ -13,7 +13,7 @@ def build_LSI_model(lst):
     corpus = [dictionary.doc2bow(text) for text in texts]
     tfidf = models.TfidfModel(corpus)
     corpus_tfidf = tfidf[corpus]
-    lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=500)
+    lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=300)
     results_vector = []
     for text in corpus:
         vector = [i[1] for i in lsi[text]]
@@ -34,8 +34,7 @@ def predict_LSI_model(lsi, lst):
 
 if __name__ == "__main__":
     SAMPLE_DATA_FILE = './data/sample.csv'
-    DATA_FILE = './data/train.csv'
-
+    DATA_FILE = './data/balanced_train_file.csv'
     df = load_data(DATA_FILE)
     lst = dataframe_to_list(df[COMMENT_TEXT_INDEX])
     sparse_word = tf_idf_vectorizer_big(lst)
